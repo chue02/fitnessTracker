@@ -23,6 +23,15 @@ class WorkoutEntrySerializer(serializers.ModelSerializer):
     exercise_category = serializers.CharField(
         source="exercise.category", read_only=True
     )
+    exercise_circuit = serializers.CharField(
+        source="exercise.circuit", read_only=True
+    )
+    exercise_muscle_group = serializers.CharField(
+        source="exercise.muscle_group", read_only=True
+    )
+    exercise_secondary_muscles = serializers.CharField(
+        source="exercise.secondary_muscles", read_only=True
+    )
 
     class Meta:
         model = WorkoutEntry
@@ -31,6 +40,9 @@ class WorkoutEntrySerializer(serializers.ModelSerializer):
             "exercise",
             "exercise_name",
             "exercise_category",
+            "exercise_circuit",
+            "exercise_muscle_group",
+            "exercise_secondary_muscles",
             "order",
             "notes",
             "reps",
