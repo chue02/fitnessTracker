@@ -8,7 +8,6 @@ from workouts.models import Exercise, WorkoutEntry
 STRENGTH = [
     ("Front Squat", "quads", "legs", "Glutes, Hamstrings"),
     ("Romanian Deadlift", "hamstrings", "legs", "Glutes, Back"),
-    ("Barbell Row", "back", "pull", "Lats, Biceps"),
     ("Plank", "abs", "core", ""),
 ]
 
