@@ -98,6 +98,28 @@ textarea { width: 100%; min-height: 60px; resize: vertical; }
 }
 .pill.strength { color: var(--accent); border-color: var(--accent); }
 .pill.cardio { color: var(--accent-2); border-color: var(--accent-2); }
+/* Circuit pills — one hue each so the split is recognizable at a glance. */
+.pill.pull { color: #f2a44f; border-color: #f2a44f; }
+.pill.push { color: #8b93ff; border-color: #8b93ff; }
+.pill.legs { color: #e05a9c; border-color: #e05a9c; }
+.pill.core { color: #3fb27f; border-color: #3fb27f; }
+
+/* Muscles worked: filled = primary, outlined = secondary. */
+.exercise-tags { display: inline-flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.muscle {
+  display: inline-block;
+  font-size: 11px;
+  text-transform: capitalize;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.muscle.primary { background: var(--accent); color: #12141c; font-weight: 600; }
+/* Primary muscle chip takes the color of the exercise's circuit. */
+.muscle.primary.pull { background: #f2a44f; }
+.muscle.primary.push { background: #8b93ff; }
+.muscle.primary.legs { background: #e05a9c; }
+.muscle.primary.core { background: #3fb27f; }
+.muscle.secondary { border: 1px solid var(--border); color: var(--muted); }
 
 .exercise-block {
   background: var(--panel-2);

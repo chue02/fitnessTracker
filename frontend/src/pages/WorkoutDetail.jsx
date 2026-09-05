@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api.js'
 import { describeEntry } from '../format.js'
+import ExerciseTags from '../components/ExerciseTags.jsx'
 
 // Group a workout's flat entry list by exercise, preserving order.
 function groupByExercise(entries) {
@@ -9,7 +10,15 @@ function groupByExercise(entries) {
   const byId = new Map()
   for (const e of entries) {
     if (!byId.has(e.exercise)) {
-      const g = { exercise: e.exercise, name: e.exercise_name, category: e.exercise_category, entries: [] }
+      const g = {
+        exercise: e.exercise,
+        name: e.exercise_name,
+        category: e.exercise_category,
+        circuit: e.exercise_circuit,
+        muscleGroup: e.exercise_muscle_group,
+        secondaryMuscles: e.exercise_secondary_muscles,
+        entries: [],
+      }
       byId.set(e.exercise, g)
       groups.push(g)
     }
@@ -61,7 +70,13 @@ export default function WorkoutDetail() {
         <div key={g.exercise} className="exercise-block">
           <div className="head">
             <span className={`pill ${g.category}`}>{g.category}</span>
+            {g.circuit && <span className={`pill ${g.circuit}`}>{g.circuit}</span>}
             <span className="name">{g.name}</span>
+            <ExerciseTags
+              circuit={g.circuit}
+              muscleGroup={g.muscleGroup}
+              secondaryMuscles={g.secondaryMuscles}
+            />
           </div>
           <table>
             <tbody>
