@@ -30,5 +30,19 @@ export function describeEntry(entry) {
   const w = entry.weight != null ? `${Number(entry.weight)} ${entry.weight_unit}` : 'bodyweight'
   const reps = entry.reps != null ? `${entry.reps} reps` : ''
   const warm = entry.is_warmup ? ' (warmup)' : ''
-  return [reps, reps && w ? '@' : '', w].filter(Boolean).join(' ') + warm
+  const summary = [reps, reps && w ? '@' : '', w].filter(Boolean).join(' ') + warm
+  return entry.equipment ? `${summary} · ${equipmentLabel(entry.equipment)}` : summary
+}
+
+// Map a resistance code to its display label.
+export function equipmentLabel(code) {
+  const labels = {
+    barbell: 'Barbell',
+    dumbbell: 'Dumbbell',
+    cable: 'Cable',
+    machine: 'Machine',
+    plates_machine: 'Plate Loaded Machine',
+    calisthenics: 'Calisthenics',
+  }
+  return labels[code] || code
 }

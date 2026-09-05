@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api.js'
 
-const MUSCLE_GROUPS = ['chest', 'back', 'legs', 'shoulders', 'arms', 'core', 'cardio', 'other']
+const MUSCLE_GROUPS = [
+  'chest', 'back', 'shoulders', 'biceps', 'triceps', 'forearms',
+  'quads', 'hamstrings', 'glutes', 'calves', 'abs', 'cardio', 'other',
+]
+const CIRCUITS = ['pull', 'push', 'legs', 'core']
 
 export default function Exercises() {
   const [exercises, setExercises] = useState([])
@@ -11,6 +15,8 @@ export default function Exercises() {
   const [name, setName] = useState('')
   const [category, setCategory] = useState('strength')
   const [muscleGroup, setMuscleGroup] = useState('other')
+  const [circuit, setCircuit] = useState('')
+  const [secondaryMuscles, setSecondaryMuscles] = useState('')
 
   function load() {
     api.get('/exercises/').then(setExercises).catch((e) => setError(e.message))
@@ -26,8 +32,12 @@ export default function Exercises() {
         name: name.trim(),
         category,
         muscle_group: category === 'cardio' ? 'cardio' : muscleGroup,
+        circuit: category === 'cardio' ? '' : circuit,
+        secondary_muscles: secondaryMuscles.trim(),
       })
       setName('')
+      setCircuit('')
+      setSecondaryMuscles('')
       load()
     } catch (err) {
       setError(typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail) || err.message)
@@ -61,16 +71,39 @@ export default function Exercises() {
             </select>
           </div>
           {category === 'strength' && (
-            <div>
-              <label>Muscle group</label>
-              <select value={muscleGroup} onChange={(e) => setMuscleGroup(e.target.value)}>
-                {MUSCLE_GROUPS.filter((g) => g !== 'cardio').map((g) => (
-                  <option key={g} value={g}>
-                    {g}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <>
+              <div>
+                <label>Muscle group</label>
+                <select value={muscleGroup} onChange={(e) => setMuscleGroup(e.target.value)}>
+                  {MUSCLE_GROUPS.filter((g) => g !== 'cardio').map((g) => (
+                    <option key={g} value={g}>
+                      {g}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label>Circuit</label>
+                <select value={circuit} onChange={(e) => setCircuit(e.target.value)}>
+                  <option value="">—</option>
+                  {CIRCUITS.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ flex: 1, minWidth: 160 }}>
+                <label>Secondary muscles</label>
+                <input
+                  type="text"
+                  style={{ width: '100%' }}
+                  placeholder="e.g. Lats, Biceps"
+                  value={secondaryMuscles}
+                  onChange={(e) => setSecondaryMuscles(e.target.value)}
+                />
+              </div>
+            </>
           )}
           <div style={{ alignSelf: 'flex-end' }}>
             <button className="btn" type="submit">
@@ -99,6 +132,8 @@ export default function Exercises() {
             <th>Name</th>
             <th>Category</th>
             <th>Muscle group</th>
+            <th>Circuit</th>
+            <th>Secondary muscles</th>
             <th>Source</th>
           </tr>
         </thead>
@@ -110,6 +145,8 @@ export default function Exercises() {
                 <span className={`pill ${x.category}`}>{x.category}</span>
               </td>
               <td className="muted">{x.muscle_group}</td>
+              <td className="muted">{x.circuit || '—'}</td>
+              <td className="muted small">{x.secondary_muscles || '—'}</td>
               <td className="muted small">{x.is_custom ? 'custom' : 'built-in'}</td>
             </tr>
           ))}

@@ -6,7 +6,15 @@ from .models import Exercise, Workout, WorkoutEntry
 class ExerciseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Exercise
-        fields = ["id", "name", "category", "muscle_group", "is_custom"]
+        fields = [
+            "id",
+            "name",
+            "category",
+            "muscle_group",
+            "circuit",
+            "secondary_muscles",
+            "is_custom",
+        ]
 
 
 class WorkoutEntrySerializer(serializers.ModelSerializer):
@@ -28,6 +36,7 @@ class WorkoutEntrySerializer(serializers.ModelSerializer):
             "reps",
             "weight",
             "weight_unit",
+            "equipment",
             "is_warmup",
             "distance",
             "distance_unit",

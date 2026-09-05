@@ -14,12 +14,23 @@ class Exercise(models.Model):
     class MuscleGroup(models.TextChoices):
         CHEST = "chest", "Chest"
         BACK = "back", "Back"
-        LEGS = "legs", "Legs"
         SHOULDERS = "shoulders", "Shoulders"
-        ARMS = "arms", "Arms"
-        CORE = "core", "Core"
+        BICEPS = "biceps", "Biceps"
+        TRICEPS = "triceps", "Triceps"
+        FOREARMS = "forearms", "Forearms"
+        QUADS = "quads", "Quads"
+        HAMSTRINGS = "hamstrings", "Hamstrings"
+        GLUTES = "glutes", "Glutes"
+        CALVES = "calves", "Calves"
+        ABS = "abs", "Abs"
         CARDIO = "cardio", "Cardio"
         OTHER = "other", "Other"
+
+    class Circuit(models.TextChoices):
+        PULL = "pull", "Pull"
+        PUSH = "push", "Push"
+        LEGS = "legs", "Legs"
+        CORE = "core", "Core"
 
     name = models.CharField(max_length=100)
     category = models.CharField(
@@ -28,6 +39,12 @@ class Exercise(models.Model):
     muscle_group = models.CharField(
         max_length=16, choices=MuscleGroup.choices, default=MuscleGroup.OTHER
     )
+    # Push/pull/legs/core split the exercise belongs to; blank for cardio.
+    circuit = models.CharField(
+        max_length=8, choices=Circuit.choices, blank=True
+    )
+    # Comma-separated secondary muscles worked, e.g. "Lats, Biceps".
+    secondary_muscles = models.CharField(max_length=255, blank=True)
     is_custom = models.BooleanField(default=True)
     # Nullable now so per-user ownership can be added later without a backfill.
     owner = models.ForeignKey(
@@ -85,6 +102,17 @@ class WorkoutEntry(models.Model):
         MI = "mi", "mi"
         KM = "km", "km"
 
+    class Equipment(models.TextChoices):
+        """How the set was loaded (the journal's "Resistance"). Chosen per set;
+        every exercise can be performed with any of these."""
+
+        BARBELL = "barbell", "Barbell"
+        DUMBBELL = "dumbbell", "Dumbbell"
+        CABLE = "cable", "Cable"
+        MACHINE = "machine", "Machine"
+        PLATES_MACHINE = "plates_machine", "Plate Loaded Machine"
+        CALISTHENICS = "calisthenics", "Calisthenics"
+
     workout = models.ForeignKey(
         Workout, on_delete=models.CASCADE, related_name="entries"
     )
@@ -99,6 +127,10 @@ class WorkoutEntry(models.Model):
     )
     weight_unit = models.CharField(
         max_length=2, choices=WeightUnit.choices, default=WeightUnit.LB
+    )
+    # Resistance used for this set; optional (e.g. cardio, bodyweight).
+    equipment = models.CharField(
+        max_length=16, choices=Equipment.choices, blank=True
     )
     is_warmup = models.BooleanField(default=False)
 

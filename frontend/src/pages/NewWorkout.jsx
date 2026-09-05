@@ -6,7 +6,7 @@ import SetRow from '../components/SetRow.jsx'
 import CardioRow from '../components/CardioRow.jsx'
 
 function blankStrengthEntry() {
-  return { reps: null, weight: null, weight_unit: 'lb', is_warmup: false }
+  return { reps: null, weight: null, weight_unit: 'lb', equipment: '', is_warmup: false }
 }
 function blankCardioEntry() {
   return { distance: null, distance_unit: 'mi', duration_seconds: null, avg_heart_rate: null }
