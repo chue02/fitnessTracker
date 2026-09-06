@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api.js'
+import { workoutSummary } from '../format.js'
 
 export default function WorkoutList() {
   const [workouts, setWorkouts] = useState(null)
@@ -31,6 +32,7 @@ export default function WorkoutList() {
           const exercises = new Set(w.entries.map((e) => e.exercise))
           const hasStrength = w.entries.some((e) => e.exercise_category === 'strength')
           const hasCardio = w.entries.some((e) => e.exercise_category === 'cardio')
+          const { circuit, muscles } = workoutSummary(w.entries)
           return (
             <Link key={w.id} to={`/workouts/${w.id}`} style={{ color: 'inherit' }}>
               <div className="card">
@@ -39,6 +41,12 @@ export default function WorkoutList() {
                   <span className="row">
                     {hasStrength && <span className="pill strength">strength</span>}
                     {hasCardio && <span className="pill cardio">cardio</span>}
+                    {circuit && <span className={`pill ${circuit}`}>{circuit}</span>}
+                    {muscles.map((m) => (
+                      <span key={m.name} className={`muscle primary ${m.circuit}`.trim()}>
+                        {m.name}
+                      </span>
+                    ))}
                   </span>
                 </div>
                 <div className="muted small" style={{ marginTop: 6 }}>

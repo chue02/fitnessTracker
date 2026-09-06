@@ -1,10 +1,5 @@
 import { useMemo, useState } from 'react'
-
-// Canonical ordering so the filter dropdown reads sensibly.
-const MUSCLE_ORDER = [
-  'chest', 'back', 'shoulders', 'biceps', 'triceps', 'forearms',
-  'quads', 'hamstrings', 'glutes', 'calves', 'abs', 'cardio', 'other',
-]
+import { MUSCLE_ORDER } from '../format.js'
 
 // Add an exercise to the workout, narrowing the list by primary muscle.
 export default function ExercisePicker({ exercises, onPick }) {
