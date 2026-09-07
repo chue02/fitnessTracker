@@ -26,11 +26,23 @@ class Exercise(models.Model):
         CARDIO = "cardio", "Cardio"
         OTHER = "other", "Other"
 
-    class Circuit(models.TextChoices):
+    class Split(models.TextChoices):
         PULL = "pull", "Pull"
         PUSH = "push", "Push"
         LEGS = "legs", "Legs"
         CORE = "core", "Core"
+
+    # A muscle group belongs to exactly one split, so `split` is DERIVED from
+    # muscle_group (see the property below) and never stored — this makes an
+    # inconsistent pairing (e.g. a "chest" exercise tagged "pull") impossible.
+    # NOTE: a few movements (e.g. deadlift) arguably span splits; that edge case
+    # is intentionally deferred — split follows the primary muscle group for now.
+    MUSCLE_TO_SPLIT = {
+        "chest": "push", "shoulders": "push", "triceps": "push",
+        "back": "pull", "biceps": "pull", "forearms": "pull",
+        "quads": "legs", "hamstrings": "legs", "glutes": "legs", "calves": "legs",
+        "abs": "core",
+    }
 
     name = models.CharField(max_length=100)
     category = models.CharField(
@@ -38,10 +50,6 @@ class Exercise(models.Model):
     )
     muscle_group = models.CharField(
         max_length=16, choices=MuscleGroup.choices, default=MuscleGroup.OTHER
-    )
-    # Push/pull/legs/core split the exercise belongs to; blank for cardio.
-    circuit = models.CharField(
-        max_length=8, choices=Circuit.choices, blank=True
     )
     # Comma-separated secondary muscles worked, e.g. "Lats, Biceps".
     secondary_muscles = models.CharField(max_length=255, blank=True)
@@ -62,6 +70,11 @@ class Exercise(models.Model):
                 fields=["owner", "name"], name="unique_exercise_name_per_owner"
             )
         ]
+
+    @property
+    def split(self):
+        """Push/pull/legs/core, derived from muscle_group ("" for cardio/other)."""
+        return self.MUSCLE_TO_SPLIT.get(self.muscle_group, "")
 
     def __str__(self):
         return self.name

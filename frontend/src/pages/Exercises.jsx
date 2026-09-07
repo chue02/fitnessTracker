@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api.js'
+import { MUSCLE_ORDER, MUSCLE_TO_SPLIT, SPLIT_ORDER } from '../format.js'
 
-const MUSCLE_GROUPS = [
-  'chest', 'back', 'shoulders', 'biceps', 'triceps', 'forearms',
-  'quads', 'hamstrings', 'glutes', 'calves', 'abs', 'cardio', 'other',
-]
-const SPLITS = ['pull', 'push', 'legs', 'core']
+// Split is derived from muscle group, so it isn't an input — only muscle is.
+const rankOf = (order, v) => {
+  const i = order.indexOf(v)
+  return i === -1 ? order.length : i
+}
 
 const COLUMNS = [
   ['name', 'Name'],
@@ -27,7 +28,6 @@ export default function Exercises() {
   const [name, setName] = useState('')
   const [category, setCategory] = useState('strength')
   const [muscleGroup, setMuscleGroup] = useState('other')
-  const [split, setSplit] = useState('')
   const [secondaryMuscles, setSecondaryMuscles] = useState('')
 
   function load() {
@@ -44,15 +44,26 @@ export default function Exercises() {
         name: name.trim(),
         category,
         muscle_group: category === 'cardio' ? 'cardio' : muscleGroup,
-        split: category === 'cardio' ? '' : split,
         secondary_muscles: secondaryMuscles.trim(),
       })
       setName('')
-      setSplit('')
       setSecondaryMuscles('')
       load()
     } catch (err) {
       setError(typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail) || err.message)
+    }
+  }
+
+  // Muscle options obey the chosen split; with no split, all muscles are shown.
+  const muscleOptions = splitFilter
+    ? MUSCLE_ORDER.filter((m) => MUSCLE_TO_SPLIT[m] === splitFilter)
+    : MUSCLE_ORDER
+
+  // Changing the split clears a muscle that no longer belongs to it.
+  function changeSplitFilter(next) {
+    setSplitFilter(next)
+    if (muscleFilter && next && MUSCLE_TO_SPLIT[muscleFilter] !== next) {
+      setMuscleFilter('')
     }
   }
 
@@ -65,16 +76,23 @@ export default function Exercises() {
 
   function compare(a, b) {
     const { key, dir } = sort
-    let av = a[key]
-    let bv = b[key]
-    if (key === 'is_custom') {
-      av = av ? 1 : 0
-      bv = bv ? 1 : 0
+    let cmp
+    if (key === 'split') {
+      // split -> muscle -> name (split and muscle by canonical, split-major order).
+      cmp =
+        rankOf(SPLIT_ORDER, a.split) - rankOf(SPLIT_ORDER, b.split) ||
+        rankOf(MUSCLE_ORDER, a.muscle_group) - rankOf(MUSCLE_ORDER, b.muscle_group) ||
+        a.name.localeCompare(b.name)
+    } else if (key === 'muscle_group') {
+      // Muscle order is split-major, so this groups by split then muscle.
+      cmp =
+        rankOf(MUSCLE_ORDER, a.muscle_group) - rankOf(MUSCLE_ORDER, b.muscle_group) ||
+        a.name.localeCompare(b.name)
+    } else if (key === 'is_custom') {
+      cmp = (a.is_custom ? 1 : 0) - (b.is_custom ? 1 : 0) || a.name.localeCompare(b.name)
+    } else {
+      cmp = String(a[key] ?? '').localeCompare(String(b[key] ?? ''))
     }
-    const cmp =
-      typeof av === 'number'
-        ? av - bv
-        : String(av ?? '').localeCompare(String(bv ?? ''))
     return dir === 'asc' ? cmp : -cmp
   }
 
@@ -113,20 +131,9 @@ export default function Exercises() {
               <div>
                 <label>Muscle group</label>
                 <select value={muscleGroup} onChange={(e) => setMuscleGroup(e.target.value)}>
-                  {MUSCLE_GROUPS.filter((g) => g !== 'cardio').map((g) => (
+                  {MUSCLE_ORDER.filter((g) => g !== 'cardio').map((g) => (
                     <option key={g} value={g}>
                       {g}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label>Split</label>
-                <select value={split} onChange={(e) => setSplit(e.target.value)}>
-                  <option value="">—</option>
-                  {SPLITS.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
                     </option>
                   ))}
                 </select>
@@ -163,19 +170,19 @@ export default function Exercises() {
           </button>
         ))}
         <span className="spacer" style={{ flex: 1 }} />
-        <select value={muscleFilter} onChange={(e) => setMuscleFilter(e.target.value)}>
-          <option value="">All muscles</option>
-          {MUSCLE_GROUPS.map((g) => (
-            <option key={g} value={g}>
-              {g}
+        <select value={splitFilter} onChange={(e) => changeSplitFilter(e.target.value)}>
+          <option value="">All splits</option>
+          {SPLIT_ORDER.map((c) => (
+            <option key={c} value={c}>
+              {c}
             </option>
           ))}
         </select>
-        <select value={splitFilter} onChange={(e) => setSplitFilter(e.target.value)}>
-          <option value="">All splits</option>
-          {SPLITS.map((c) => (
-            <option key={c} value={c}>
-              {c}
+        <select value={muscleFilter} onChange={(e) => setMuscleFilter(e.target.value)}>
+          <option value="">All muscles</option>
+          {muscleOptions.map((g) => (
+            <option key={g} value={g}>
+              {g}
             </option>
           ))}
         </select>

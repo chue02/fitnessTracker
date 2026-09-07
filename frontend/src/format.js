@@ -2,9 +2,23 @@
 
 // Canonical orderings — also used as deterministic tie-breakers.
 export const SPLIT_ORDER = ['pull', 'push', 'legs', 'core']
+
+// Each muscle group belongs to exactly one split (mirrors the backend's
+// MUSCLE_TO_SPLIT). Used to keep muscle/split filters consistent with each other.
+export const MUSCLE_TO_SPLIT = {
+  back: 'pull', biceps: 'pull', forearms: 'pull',
+  chest: 'push', shoulders: 'push', triceps: 'push',
+  quads: 'legs', hamstrings: 'legs', glutes: 'legs', calves: 'legs',
+  abs: 'core',
+}
+// Muscles ordered split-major (pull, push, legs, core) so sorting by muscle
+// naturally groups exercises under their split.
 export const MUSCLE_ORDER = [
-  'chest', 'back', 'shoulders', 'biceps', 'triceps', 'forearms',
-  'quads', 'hamstrings', 'glutes', 'calves', 'abs', 'cardio', 'other',
+  'back', 'biceps', 'forearms', // pull
+  'chest', 'shoulders', 'triceps', // push
+  'quads', 'hamstrings', 'glutes', 'calves', // legs
+  'abs', // core
+  'cardio', 'other',
 ]
 
 // Summarize a workout for its history card: the dominant split and the top 2

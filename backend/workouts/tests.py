@@ -7,9 +7,9 @@ from .models import Exercise, Workout, WorkoutEntry
 
 class ExerciseModelTests(APITestCase):
     def test_new_fields_default_blank(self):
-        """circuit/secondary_muscles are optional and default to blank."""
-        ex = Exercise.objects.create(name="Some Lift")
-        self.assertEqual(ex.circuit, "")
+        """secondary_muscles is optional; split is blank when muscle has no split."""
+        ex = Exercise.objects.create(name="Some Lift")  # muscle_group='other'
+        self.assertEqual(ex.split, "")
         self.assertEqual(ex.secondary_muscles, "")
 
     def test_granular_muscle_group_accepted(self):
@@ -18,22 +18,29 @@ class ExerciseModelTests(APITestCase):
         )
         self.assertEqual(ex.muscle_group, "biceps")
 
+    def test_split_is_derived_from_muscle_group(self):
+        cases = {"chest": "push", "back": "pull", "quads": "legs", "abs": "core"}
+        for muscle, split in cases.items():
+            ex = Exercise.objects.create(name=f"Test {muscle}", muscle_group=muscle)
+            self.assertEqual(ex.split, split)
+
 
 class ExerciseApiTests(APITestCase):
-    def test_create_exercise_with_new_fields(self):
+    def test_create_exercise_derives_split(self):
         resp = self.client.post(
             "/api/exercises/",
             {
                 "name": "Incline Bicep Curl",
                 "category": "strength",
                 "muscle_group": "biceps",
-                "circuit": "pull",
+                "split": "legs",  # ignored: split is read-only / derived
                 "secondary_muscles": "Biceps (Long)",
             },
             format="json",
         )
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.data)
-        self.assertEqual(resp.data["circuit"], "pull")
+        # Derived from muscle_group (biceps -> pull), NOT the posted "legs".
+        self.assertEqual(resp.data["split"], "pull")
         self.assertEqual(resp.data["secondary_muscles"], "Biceps (Long)")
         self.assertTrue(resp.data["is_custom"])
         # Equipment is no longer a property of the exercise.
@@ -81,7 +88,7 @@ class SeedExercisesTests(APITestCase):
         self.assertFalse(Exercise.objects.filter(name="Dumbbell Curl").exists())
 
         lat = Exercise.objects.get(name="Lat Pulldown", owner=None)
-        self.assertEqual(lat.circuit, "pull")
+        self.assertEqual(lat.split, "pull")
         self.assertEqual(lat.muscle_group, "back")
         self.assertEqual(lat.secondary_muscles, "Lats, Biceps")
         self.assertFalse(lat.is_custom)
