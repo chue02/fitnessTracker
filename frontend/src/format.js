@@ -1,40 +1,40 @@
 // Small display helpers shared across pages.
 
 // Canonical orderings — also used as deterministic tie-breakers.
-export const CIRCUIT_ORDER = ['pull', 'push', 'legs', 'core']
+export const SPLIT_ORDER = ['pull', 'push', 'legs', 'core']
 export const MUSCLE_ORDER = [
   'chest', 'back', 'shoulders', 'biceps', 'triceps', 'forearms',
   'quads', 'hamstrings', 'glutes', 'calves', 'abs', 'cardio', 'other',
 ]
 
-// Summarize a workout for its history card: the dominant circuit and the top 2
+// Summarize a workout for its history card: the dominant split and the top 2
 // primary muscles, counted by DISTINCT exercise (not per set). Ties break by the
-// canonical orderings above. Muscle items carry their dominant circuit for tint.
+// canonical orderings above. Muscle items carry their dominant split for tint.
 export function workoutSummary(entries) {
   // Collapse entries to distinct exercises.
   const byExercise = new Map()
   for (const e of entries) {
     if (!byExercise.has(e.exercise)) {
       byExercise.set(e.exercise, {
-        circuit: e.exercise_circuit || '',
+        split: e.exercise_split || '',
         muscle: e.exercise_muscle_group || '',
       })
     }
   }
   const exercises = [...byExercise.values()]
 
-  const circuitCounts = new Map()
+  const splitCounts = new Map()
   const muscleCounts = new Map()
-  // For each muscle, tally which circuits it appeared under (for the pill tint).
-  const muscleCircuits = new Map()
-  for (const { circuit, muscle } of exercises) {
-    if (circuit) circuitCounts.set(circuit, (circuitCounts.get(circuit) || 0) + 1)
+  // For each muscle, tally which splits it appeared under (for the pill tint).
+  const muscleSplits = new Map()
+  for (const { split, muscle } of exercises) {
+    if (split) splitCounts.set(split, (splitCounts.get(split) || 0) + 1)
     if (muscle && muscle !== 'cardio') {
       muscleCounts.set(muscle, (muscleCounts.get(muscle) || 0) + 1)
-      if (!muscleCircuits.has(muscle)) muscleCircuits.set(muscle, new Map())
-      if (circuit) {
-        const m = muscleCircuits.get(muscle)
-        m.set(circuit, (m.get(circuit) || 0) + 1)
+      if (!muscleSplits.has(muscle)) muscleSplits.set(muscle, new Map())
+      if (split) {
+        const m = muscleSplits.get(muscle)
+        m.set(split, (m.get(split) || 0) + 1)
       }
     }
   }
@@ -43,21 +43,21 @@ export function workoutSummary(entries) {
   const rank = (order) => (a, b) =>
     b[1] - a[1] || order.indexOf(a[0]) - order.indexOf(b[0])
 
-  const topCircuit = [...circuitCounts].sort(rank(CIRCUIT_ORDER))[0]
-  const circuit = topCircuit ? topCircuit[0] : ''
+  const topSplit = [...splitCounts].sort(rank(SPLIT_ORDER))[0]
+  const split = topSplit ? topSplit[0] : ''
 
   const muscles = [...muscleCounts]
     .sort(rank(MUSCLE_ORDER))
     .slice(0, 2)
     .map(([name]) => {
-      const counts = muscleCircuits.get(name)
+      const counts = muscleSplits.get(name)
       const dominant = counts && counts.size
-        ? [...counts].sort(rank(CIRCUIT_ORDER))[0][0]
+        ? [...counts].sort(rank(SPLIT_ORDER))[0][0]
         : ''
-      return { name, circuit: dominant }
+      return { name, split: dominant }
     })
 
-  return { circuit, muscles }
+  return { split, muscles }
 }
 
 export function formatDuration(totalSeconds) {

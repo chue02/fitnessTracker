@@ -106,12 +106,12 @@ export default function NewWorkout() {
         <div key={block.key} className="exercise-block">
           <div className="head">
             <span className={`pill ${block.exercise.category}`}>{block.exercise.category}</span>
-            {block.exercise.circuit && (
-              <span className={`pill ${block.exercise.circuit}`}>{block.exercise.circuit}</span>
+            {block.exercise.split && (
+              <span className={`pill ${block.exercise.split}`}>{block.exercise.split}</span>
             )}
             <span className="name">{block.exercise.name}</span>
             <ExerciseTags
-              circuit={block.exercise.circuit}
+              split={block.exercise.split}
               muscleGroup={block.exercise.muscle_group}
               secondaryMuscles={block.exercise.secondary_muscles}
             />

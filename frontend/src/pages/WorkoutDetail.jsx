@@ -14,7 +14,7 @@ function groupByExercise(entries) {
         exercise: e.exercise,
         name: e.exercise_name,
         category: e.exercise_category,
-        circuit: e.exercise_circuit,
+        split: e.exercise_split,
         muscleGroup: e.exercise_muscle_group,
         secondaryMuscles: e.exercise_secondary_muscles,
         entries: [],
@@ -70,10 +70,10 @@ export default function WorkoutDetail() {
         <div key={g.exercise} className="exercise-block">
           <div className="head">
             <span className={`pill ${g.category}`}>{g.category}</span>
-            {g.circuit && <span className={`pill ${g.circuit}`}>{g.circuit}</span>}
+            {g.split && <span className={`pill ${g.split}`}>{g.split}</span>}
             <span className="name">{g.name}</span>
             <ExerciseTags
-              circuit={g.circuit}
+              split={g.split}
               muscleGroup={g.muscleGroup}
               secondaryMuscles={g.secondaryMuscles}
             />
