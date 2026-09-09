@@ -20,9 +20,9 @@ const COLUMNS = [
 export default function Exercises() {
   const [exercises, setExercises] = useState([])
   const [error, setError] = useState(null)
+  // Single mutually-exclusive filter: 'all' | category (strength/cardio) | split.
   const [filter, setFilter] = useState('all')
   const [muscleFilter, setMuscleFilter] = useState('')
-  const [splitFilter, setSplitFilter] = useState('')
   const [sort, setSort] = useState({ key: 'name', dir: 'asc' })
 
   const [name, setName] = useState('')
@@ -54,15 +54,20 @@ export default function Exercises() {
     }
   }
 
-  // Muscle options obey the chosen split; with no split, all muscles are shown.
-  const muscleOptions = splitFilter
-    ? MUSCLE_ORDER.filter((m) => MUSCLE_TO_SPLIT[m] === splitFilter)
+  // When the active filter is a split, muscle options narrow to that split.
+  const activeSplit = SPLIT_ORDER.includes(filter) ? filter : ''
+  const muscleOptions = activeSplit
+    ? MUSCLE_ORDER.filter((m) => MUSCLE_TO_SPLIT[m] === activeSplit)
     : MUSCLE_ORDER
 
-  // Changing the split clears a muscle that no longer belongs to it.
-  function changeSplitFilter(next) {
-    setSplitFilter(next)
-    if (muscleFilter && next && MUSCLE_TO_SPLIT[muscleFilter] !== next) {
+  // Cardio has no muscles; a split clears a muscle that no longer belongs to it.
+  function changeFilter(next) {
+    setFilter(next)
+    const nextSplit = SPLIT_ORDER.includes(next) ? next : ''
+    if (
+      next === 'cardio' ||
+      (muscleFilter && nextSplit && MUSCLE_TO_SPLIT[muscleFilter] !== nextSplit)
+    ) {
       setMuscleFilter('')
     }
   }
@@ -97,9 +102,8 @@ export default function Exercises() {
   }
 
   const shown = exercises
-    .filter((x) => filter === 'all' || x.category === filter)
+    .filter((x) => filter === 'all' || x.category === filter || x.split === filter)
     .filter((x) => !muscleFilter || x.muscle_group === muscleFilter)
-    .filter((x) => !splitFilter || x.split === splitFilter)
     .sort(compare)
 
   return (
@@ -114,7 +118,7 @@ export default function Exercises() {
             <input
               type="text"
               style={{ width: '100%' }}
-              placeholder="e.g. Hack Squat"
+              placeholder="e.g. Chest Press"
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
@@ -160,25 +164,21 @@ export default function Exercises() {
       </form>
 
       <div className="row" style={{ margin: '4px 0 12px' }}>
-        {['all', 'strength', 'cardio'].map((f) => (
+        {['all', 'strength', 'cardio', ...SPLIT_ORDER].map((f) => (
           <button
             key={f}
             className={'btn small ' + (filter === f ? '' : 'ghost')}
-            onClick={() => setFilter(f)}
+            onClick={() => changeFilter(f)}
           >
             {f}
           </button>
         ))}
         <span className="spacer" style={{ flex: 1 }} />
-        <select value={splitFilter} onChange={(e) => changeSplitFilter(e.target.value)}>
-          <option value="">All splits</option>
-          {SPLIT_ORDER.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-        <select value={muscleFilter} onChange={(e) => setMuscleFilter(e.target.value)}>
+        <select
+          value={muscleFilter}
+          onChange={(e) => setMuscleFilter(e.target.value)}
+          disabled={filter === 'cardio'}
+        >
           <option value="">All muscles</option>
           {muscleOptions.map((g) => (
             <option key={g} value={g}>
