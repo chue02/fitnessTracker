@@ -35,7 +35,7 @@ export default function CardioRow({ index, entry, onChange, onRemove }) {
           set('avg_heart_rate', e.target.value === '' ? null : Number(e.target.value))
         }
       />
-      <button type="button" className="btn ghost small" onClick={onRemove}>
+      <button type="button" className="btn danger small" onClick={onRemove}>
         ✕
       </button>
     </div>

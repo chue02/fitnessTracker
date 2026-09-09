@@ -54,7 +54,7 @@ export default function WorkoutDetail() {
 
   return (
     <div>
-      <div className="row between">
+      <div className="row between" style={{ marginBottom: 16 }}>
         <h1 style={{ margin: 0 }}>{workout.date}</h1>
         <div className="row">
           <button className="btn secondary small" onClick={() => navigate(`/workouts/${id}/edit`)}>

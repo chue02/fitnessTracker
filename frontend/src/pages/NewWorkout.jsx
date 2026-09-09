@@ -219,7 +219,7 @@ export default function NewWorkout() {
               secondaryMuscles={block.exercise.secondary_muscles}
             />
             <span className="spacer" style={{ flex: 1 }} />
-            <button type="button" className="btn ghost small" onClick={() => removeBlock(block.key)}>
+            <button type="button" className="btn danger small" onClick={() => removeBlock(block.key)}>
               Remove
             </button>
           </div>
@@ -244,22 +244,23 @@ export default function NewWorkout() {
             )
           )}
 
-          <button type="button" className="btn secondary small" onClick={() => addEntry(block)}>
-            + Add {block.exercise.category === 'cardio' ? 'segment' : 'set'}
-          </button>
+          <div className="row between" style={{ marginTop: 10 }}>
+            <button type="button" className="btn secondary small" onClick={() => addEntry(block)}>
+              + Add {block.exercise.category === 'cardio' ? 'segment' : 'set'}
+            </button>
+            <button type="button" className="btn small" onClick={() => setActiveKey(null)}>
+              Done
+            </button>
+          </div>
         </div>
         )
       )}
 
-      <div style={{ margin: '16px 0' }}>
-        {activeKey ? (
-          <button type="button" className="btn secondary" onClick={() => setActiveKey(null)}>
-            Done
-          </button>
-        ) : (
+      {!activeKey && (
+        <div style={{ margin: '16px 0' }}>
           <ExercisePicker exercises={exercises} onPick={addExercise} />
-        )}
-      </div>
+        </div>
+      )}
 
       {error && <div className="error">{error}</div>}
 
