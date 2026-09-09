@@ -4,9 +4,20 @@ from .models import Exercise, Workout, WorkoutEntry
 
 
 class ExerciseSerializer(serializers.ModelSerializer):
+    # Derived from muscle_group on the model; read-only, never accepted on write.
+    split = serializers.ReadOnlyField()
+
     class Meta:
         model = Exercise
-        fields = ["id", "name", "category", "muscle_group", "is_custom"]
+        fields = [
+            "id",
+            "name",
+            "category",
+            "muscle_group",
+            "split",
+            "secondary_muscles",
+            "is_custom",
+        ]
 
 
 class WorkoutEntrySerializer(serializers.ModelSerializer):
@@ -14,6 +25,15 @@ class WorkoutEntrySerializer(serializers.ModelSerializer):
     exercise_name = serializers.CharField(source="exercise.name", read_only=True)
     exercise_category = serializers.CharField(
         source="exercise.category", read_only=True
+    )
+    exercise_split = serializers.CharField(
+        source="exercise.split", read_only=True
+    )
+    exercise_muscle_group = serializers.CharField(
+        source="exercise.muscle_group", read_only=True
+    )
+    exercise_secondary_muscles = serializers.CharField(
+        source="exercise.secondary_muscles", read_only=True
     )
 
     class Meta:
@@ -23,11 +43,15 @@ class WorkoutEntrySerializer(serializers.ModelSerializer):
             "exercise",
             "exercise_name",
             "exercise_category",
+            "exercise_split",
+            "exercise_muscle_group",
+            "exercise_secondary_muscles",
             "order",
             "notes",
             "reps",
             "weight",
             "weight_unit",
+            "equipment",
             "is_warmup",
             "distance",
             "distance_unit",

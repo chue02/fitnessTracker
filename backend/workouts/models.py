@@ -14,12 +14,35 @@ class Exercise(models.Model):
     class MuscleGroup(models.TextChoices):
         CHEST = "chest", "Chest"
         BACK = "back", "Back"
-        LEGS = "legs", "Legs"
         SHOULDERS = "shoulders", "Shoulders"
-        ARMS = "arms", "Arms"
-        CORE = "core", "Core"
+        BICEPS = "biceps", "Biceps"
+        TRICEPS = "triceps", "Triceps"
+        FOREARMS = "forearms", "Forearms"
+        QUADS = "quads", "Quads"
+        HAMSTRINGS = "hamstrings", "Hamstrings"
+        GLUTES = "glutes", "Glutes"
+        CALVES = "calves", "Calves"
+        ABS = "abs", "Abs"
         CARDIO = "cardio", "Cardio"
         OTHER = "other", "Other"
+
+    class Split(models.TextChoices):
+        PULL = "pull", "Pull"
+        PUSH = "push", "Push"
+        LEGS = "legs", "Legs"
+        CORE = "core", "Core"
+
+    # A muscle group belongs to exactly one split, so `split` is DERIVED from
+    # muscle_group (see the property below) and never stored — this makes an
+    # inconsistent pairing (e.g. a "chest" exercise tagged "pull") impossible.
+    # NOTE: a few movements (e.g. deadlift) arguably span splits; that edge case
+    # is intentionally deferred — split follows the primary muscle group for now.
+    MUSCLE_TO_SPLIT = {
+        "chest": "push", "shoulders": "push", "triceps": "push",
+        "back": "pull", "biceps": "pull", "forearms": "pull",
+        "quads": "legs", "hamstrings": "legs", "glutes": "legs", "calves": "legs",
+        "abs": "core",
+    }
 
     name = models.CharField(max_length=100)
     category = models.CharField(
@@ -28,6 +51,8 @@ class Exercise(models.Model):
     muscle_group = models.CharField(
         max_length=16, choices=MuscleGroup.choices, default=MuscleGroup.OTHER
     )
+    # Comma-separated secondary muscles worked, e.g. "Lats, Biceps".
+    secondary_muscles = models.CharField(max_length=255, blank=True)
     is_custom = models.BooleanField(default=True)
     # Nullable now so per-user ownership can be added later without a backfill.
     owner = models.ForeignKey(
@@ -45,6 +70,11 @@ class Exercise(models.Model):
                 fields=["owner", "name"], name="unique_exercise_name_per_owner"
             )
         ]
+
+    @property
+    def split(self):
+        """Push/pull/legs/core, derived from muscle_group ("" for cardio/other)."""
+        return self.MUSCLE_TO_SPLIT.get(self.muscle_group, "")
 
     def __str__(self):
         return self.name
@@ -85,6 +115,17 @@ class WorkoutEntry(models.Model):
         MI = "mi", "mi"
         KM = "km", "km"
 
+    class Equipment(models.TextChoices):
+        """How the set was loaded (the journal's "Resistance"). Chosen per set;
+        every exercise can be performed with any of these."""
+
+        BARBELL = "barbell", "Barbell"
+        DUMBBELL = "dumbbell", "Dumbbell"
+        CABLE = "cable", "Cable"
+        MACHINE = "machine", "Machine"
+        PLATES_MACHINE = "plates_machine", "Plate Loaded Machine"
+        CALISTHENICS = "calisthenics", "Calisthenics"
+
     workout = models.ForeignKey(
         Workout, on_delete=models.CASCADE, related_name="entries"
     )
@@ -99,6 +140,10 @@ class WorkoutEntry(models.Model):
     )
     weight_unit = models.CharField(
         max_length=2, choices=WeightUnit.choices, default=WeightUnit.LB
+    )
+    # Resistance used for this set; optional (e.g. cardio, bodyweight).
+    equipment = models.CharField(
+        max_length=16, choices=Equipment.choices, blank=True
     )
     is_warmup = models.BooleanField(default=False)
 

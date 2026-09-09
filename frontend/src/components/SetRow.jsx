@@ -1,10 +1,32 @@
-// One strength set: reps, weight, unit, warmup toggle.
+// Resistance options — every exercise can be performed with any of these.
+const EQUIPMENT = [
+  ['barbell', 'Barbell'],
+  ['dumbbell', 'Dumbbell'],
+  ['cable', 'Cable'],
+  ['machine', 'Machine'],
+  ['plates_machine', 'Plate Loaded Machine'],
+  ['calisthenics', 'Calisthenics'],
+]
+
+// One strength set: resistance, reps, weight, unit, warmup toggle.
 export default function SetRow({ index, entry, onChange, onRemove }) {
   const set = (field, value) => onChange({ ...entry, [field]: value })
 
   return (
     <div className="entry-line">
       <span className="idx">{index + 1}</span>
+      <select
+        value={entry.equipment ?? ''}
+        onChange={(e) => set('equipment', e.target.value)}
+        title="Resistance"
+      >
+        <option value="">resistance…</option>
+        {EQUIPMENT.map(([value, label]) => (
+          <option key={value} value={value}>
+            {label}
+          </option>
+        ))}
+      </select>
       <input
         type="number"
         min="0"

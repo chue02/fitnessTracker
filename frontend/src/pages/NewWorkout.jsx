@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api.js'
 import ExercisePicker from '../components/ExercisePicker.jsx'
+import ExerciseTags from '../components/ExerciseTags.jsx'
 import SetRow from '../components/SetRow.jsx'
 import CardioRow from '../components/CardioRow.jsx'
 
 function blankStrengthEntry() {
-  return { reps: null, weight: null, weight_unit: 'lb', is_warmup: false }
+  return { reps: null, weight: null, weight_unit: 'lb', equipment: '', is_warmup: false }
 }
 function blankCardioEntry() {
   return { distance: null, distance_unit: 'mi', duration_seconds: null, avg_heart_rate: null }
@@ -105,7 +106,15 @@ export default function NewWorkout() {
         <div key={block.key} className="exercise-block">
           <div className="head">
             <span className={`pill ${block.exercise.category}`}>{block.exercise.category}</span>
+            {block.exercise.split && (
+              <span className={`pill ${block.exercise.split}`}>{block.exercise.split}</span>
+            )}
             <span className="name">{block.exercise.name}</span>
+            <ExerciseTags
+              split={block.exercise.split}
+              muscleGroup={block.exercise.muscle_group}
+              secondaryMuscles={block.exercise.secondary_muscles}
+            />
             <span className="spacer" style={{ flex: 1 }} />
             <button type="button" className="btn ghost small" onClick={() => removeBlock(block.key)}>
               Remove
