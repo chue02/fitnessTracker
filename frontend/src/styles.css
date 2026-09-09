@@ -56,6 +56,10 @@ input, select, textarea {
 }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
 input[type='number'] { width: 90px; }
+/* Hide the up/down spinner arrows on number inputs. */
+input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 textarea { width: 100%; min-height: 60px; resize: vertical; }
 
 .btn {
@@ -130,6 +134,16 @@ textarea { width: 100%; min-height: 60px; resize: vertical; }
 }
 .exercise-block .head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .exercise-block .head .name { font-weight: 600; }
+
+/* Collapsed exercise (a previously added block); click to re-expand. */
+.exercise-block.condensed { cursor: pointer; }
+.exercise-block.condensed:hover { border-color: var(--accent); }
+.exercise-block.condensed .head { margin-bottom: 0; }
+.exercise-block.condensed .condensed-summary {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 6px;
+}
 
 .entry-line { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
 .entry-line .idx { width: 22px; color: var(--muted); font-size: 13px; }

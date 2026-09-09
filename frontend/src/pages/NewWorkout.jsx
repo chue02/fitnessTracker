@@ -5,6 +5,7 @@ import ExercisePicker from '../components/ExercisePicker.jsx'
 import ExerciseTags from '../components/ExerciseTags.jsx'
 import SetRow from '../components/SetRow.jsx'
 import CardioRow from '../components/CardioRow.jsx'
+import { describeEntry } from '../format.js'
 
 function blankStrengthEntry() {
   return { reps: null, weight: null, weight_unit: 'lb', equipment: '', is_warmup: false }
@@ -22,9 +23,9 @@ export default function NewWorkout() {
   const [blocks, setBlocks] = useState([])
   const [error, setError] = useState(null)
   const [saving, setSaving] = useState(false)
-  // True while the user is editing a just-added exercise; hides the picker
-  // until they click Done.
-  const [adding, setAdding] = useState(false)
+  // The block currently expanded for editing; others render condensed. Also
+  // hides the picker (replaced by Done) while a block is being edited.
+  const [activeKey, setActiveKey] = useState(null)
 
   useEffect(() => {
     api.get('/exercises/').then(setExercises).catch((e) => setError(e.message))
@@ -33,8 +34,9 @@ export default function NewWorkout() {
   function addExercise(exercise) {
     const first =
       exercise.category === 'cardio' ? blankCardioEntry() : blankStrengthEntry()
-    setBlocks((b) => [...b, { key: crypto.randomUUID(), exercise, entries: [first] }])
-    setAdding(true)
+    const key = crypto.randomUUID()
+    setBlocks((b) => [...b, { key, exercise, entries: [first] }])
+    setActiveKey(key)
   }
 
   function updateBlock(key, updater) {
@@ -69,8 +71,9 @@ export default function NewWorkout() {
 
   function removeBlock(key) {
     setBlocks((b) => b.filter((blk) => blk.key !== key))
-    // Removing an exercise ends the current add, so bring the picker back.
-    setAdding(false)
+    // If the removed block was the one being edited, collapse and bring the
+    // picker back.
+    setActiveKey((cur) => (cur === key ? null : cur))
   }
 
   async function save() {
@@ -114,7 +117,35 @@ export default function NewWorkout() {
         </div>
       </div>
 
-      {blocks.map((block) => (
+      {blocks.map((block) =>
+        block.key !== activeKey ? (
+          <div
+            key={block.key}
+            className="exercise-block condensed"
+            onClick={() => setActiveKey(block.key)}
+            title="Click to edit"
+          >
+            <div className="head">
+              <span className={`pill ${block.exercise.category}`}>{block.exercise.category}</span>
+              {block.exercise.split && (
+                <span className={`pill ${block.exercise.split}`}>{block.exercise.split}</span>
+              )}
+              <span className="name">{block.exercise.name}</span>
+              <span className="spacer" style={{ flex: 1 }} />
+              <span className="small" style={{ color: 'var(--muted)' }}>
+                {block.entries.length}{' '}
+                {block.exercise.category === 'cardio'
+                  ? block.entries.length === 1 ? 'segment' : 'segments'
+                  : block.entries.length === 1 ? 'set' : 'sets'}
+              </span>
+            </div>
+            <div className="condensed-summary">
+              {block.entries
+                .map((e) => describeEntry({ ...e, exercise_category: block.exercise.category }))
+                .join('  •  ')}
+            </div>
+          </div>
+        ) : (
         <div key={block.key} className="exercise-block">
           <div className="head">
             <span className={`pill ${block.exercise.category}`}>{block.exercise.category}</span>
@@ -157,11 +188,12 @@ export default function NewWorkout() {
             + Add {block.exercise.category === 'cardio' ? 'segment' : 'set'}
           </button>
         </div>
-      ))}
+        )
+      )}
 
       <div style={{ margin: '16px 0' }}>
-        {adding ? (
-          <button type="button" className="btn secondary" onClick={() => setAdding(false)}>
+        {activeKey ? (
+          <button type="button" className="btn secondary" onClick={() => setActiveKey(null)}>
             Done
           </button>
         ) : (
