@@ -57,6 +57,9 @@ export default function WorkoutDetail() {
       <div className="row between">
         <h1 style={{ margin: 0 }}>{workout.date}</h1>
         <div className="row">
+          <button className="btn secondary small" onClick={() => navigate(`/workouts/${id}/edit`)}>
+            Edit
+          </button>
           <button className="btn danger small" onClick={remove}>
             Delete
           </button>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api.js'
 import ExercisePicker from '../components/ExercisePicker.jsx'
 import ExerciseTags from '../components/ExerciseTags.jsx'
@@ -14,8 +14,53 @@ function blankCardioEntry() {
   return { distance: null, distance_unit: 'mi', duration_seconds: null, avg_heart_rate: null }
 }
 
+// Rebuild the editable block/entry structure from a saved workout's flat entry
+// list, grouping consecutive entries by exercise and keeping only the editable
+// fields (denormalized read-only fields are dropped).
+function workoutToBlocks(workout) {
+  const byId = new Map()
+  const blocks = []
+  for (const e of workout.entries) {
+    if (!byId.has(e.exercise)) {
+      const block = {
+        key: crypto.randomUUID(),
+        exercise: {
+          id: e.exercise,
+          name: e.exercise_name,
+          category: e.exercise_category,
+          split: e.exercise_split,
+          muscle_group: e.exercise_muscle_group,
+          secondary_muscles: e.exercise_secondary_muscles,
+        },
+        entries: [],
+      }
+      byId.set(e.exercise, block)
+      blocks.push(block)
+    }
+    byId.get(e.exercise).entries.push(
+      e.exercise_category === 'cardio'
+        ? {
+            distance: e.distance,
+            distance_unit: e.distance_unit,
+            duration_seconds: e.duration_seconds,
+            avg_heart_rate: e.avg_heart_rate,
+          }
+        : {
+            reps: e.reps,
+            weight: e.weight,
+            weight_unit: e.weight_unit,
+            equipment: e.equipment ?? '',
+            is_warmup: e.is_warmup,
+          }
+    )
+  }
+  return blocks
+}
+
 export default function NewWorkout() {
   const navigate = useNavigate()
+  // Present when editing an existing workout; absent when creating a new one.
+  const { id } = useParams()
   const [exercises, setExercises] = useState([])
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [notes, setNotes] = useState('')
@@ -30,6 +75,19 @@ export default function NewWorkout() {
   useEffect(() => {
     api.get('/exercises/').then(setExercises).catch((e) => setError(e.message))
   }, [])
+
+  // When editing, load the existing workout and hydrate the form from it.
+  useEffect(() => {
+    if (!id) return
+    api
+      .get(`/workouts/${id}/`)
+      .then((w) => {
+        setDate(w.date)
+        setNotes(w.notes ?? '')
+        setBlocks(workoutToBlocks(w))
+      })
+      .catch((e) => setError(e.message))
+  }, [id])
 
   function addExercise(exercise) {
     const first =
@@ -88,8 +146,10 @@ export default function NewWorkout() {
       }
     }
     try {
-      const created = await api.post('/workouts/', { date, notes, entries })
-      navigate(`/workouts/${created.id}`)
+      const saved = id
+        ? await api.patch(`/workouts/${id}/`, { date, notes, entries })
+        : await api.post('/workouts/', { date, notes, entries })
+      navigate(`/workouts/${saved.id}`)
     } catch (e) {
       setError(typeof e.detail === 'string' ? e.detail : JSON.stringify(e.detail) || e.message)
       setSaving(false)
@@ -98,7 +158,7 @@ export default function NewWorkout() {
 
   return (
     <div>
-      <h1>New workout</h1>
+      <h1>{id ? 'Edit workout' : 'New workout'}</h1>
 
       <div className="row" style={{ marginBottom: 16 }}>
         <div>
@@ -205,9 +265,9 @@ export default function NewWorkout() {
 
       <div className="row" style={{ marginTop: 20 }}>
         <button className="btn" onClick={save} disabled={saving || blocks.length === 0}>
-          {saving ? 'Saving…' : 'Save workout'}
+          {saving ? 'Saving…' : id ? 'Update workout' : 'Save workout'}
         </button>
-        <button className="btn ghost" onClick={() => navigate('/')}>
+        <button className="btn ghost" onClick={() => navigate(id ? `/workouts/${id}` : '/')}>
           Cancel
         </button>
       </div>
