@@ -38,8 +38,14 @@ export default function NewWorkout() {
   }
 
   function addEntry(block) {
-    const entry =
-      block.exercise.category === 'cardio' ? blankCardioEntry() : blankStrengthEntry()
+    // Default a new set/segment to the previous entry's values so users don't
+    // re-enter the same reps/weight (or distance/duration) every time.
+    const last = block.entries[block.entries.length - 1]
+    const entry = last
+      ? { ...last }
+      : block.exercise.category === 'cardio'
+        ? blankCardioEntry()
+        : blankStrengthEntry()
     updateBlock(block.key, (blk) => ({ ...blk, entries: [...blk.entries, entry] }))
   }
 
