@@ -179,7 +179,7 @@ export default function Exercises() {
           onChange={(e) => setMuscleFilter(e.target.value)}
           disabled={filter === 'cardio'}
         >
-          <option value="">All muscles</option>
+          <option value="">{filter === 'cardio' ? 'cardio' : 'All muscles'}</option>
           {muscleOptions.map((g) => (
             <option key={g} value={g}>
               {g}
