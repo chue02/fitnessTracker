@@ -54,9 +54,12 @@ export default function WorkoutDetail() {
 
   return (
     <div>
-      <div className="row between">
+      <div className="row between" style={{ marginBottom: 16 }}>
         <h1 style={{ margin: 0 }}>{workout.date}</h1>
         <div className="row">
+          <button className="btn secondary small" onClick={() => navigate(`/workouts/${id}/edit`)}>
+            Edit
+          </button>
           <button className="btn danger small" onClick={remove}>
             Delete
           </button>
@@ -94,7 +97,7 @@ export default function WorkoutDetail() {
       ))}
 
       <button className="btn ghost" onClick={() => navigate('/')} style={{ marginTop: 12 }}>
-        ← Back to history
+        ← Back to journal
       </button>
     </div>
   )

@@ -21,7 +21,7 @@ export const MUSCLE_ORDER = [
   'cardio', 'other',
 ]
 
-// Summarize a workout for its history card: the dominant split and the top 2
+// Summarize a workout for its journal card: the dominant split and the top 2
 // primary muscles, counted by DISTINCT exercise (not per set). Ties break by the
 // canonical orderings above. Muscle items carry their dominant split for tint.
 export function workoutSummary(entries) {

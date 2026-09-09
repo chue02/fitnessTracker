@@ -55,7 +55,7 @@ export default function SetRow({ index, entry, onChange, onRemove }) {
         />
         &nbsp;warmup
       </label>
-      <button type="button" className="btn ghost small" onClick={onRemove}>
+      <button type="button" className="btn danger small" onClick={onRemove}>
         ✕
       </button>
     </div>

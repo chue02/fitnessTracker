@@ -9,7 +9,7 @@ function Nav() {
     <nav className="nav">
       <span className="brand">🏋️ Fitness Tracker</span>
       <NavLink to="/" end className={({ isActive }) => 'link' + (isActive ? ' active' : '')}>
-        History
+        Journal
       </NavLink>
       <NavLink to="/exercises" className={({ isActive }) => 'link' + (isActive ? ' active' : '')}>
         Exercises
@@ -30,6 +30,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<WorkoutList />} />
           <Route path="/workouts/new" element={<NewWorkout />} />
+          <Route path="/workouts/:id/edit" element={<NewWorkout />} />
           <Route path="/workouts/:id" element={<WorkoutDetail />} />
           <Route path="/exercises" element={<Exercises />} />
         </Routes>
