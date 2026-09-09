@@ -23,6 +23,7 @@ export default function Exercises() {
   // Single mutually-exclusive filter: 'all' | category (strength/cardio) | split.
   const [filter, setFilter] = useState('all')
   const [muscleFilter, setMuscleFilter] = useState('')
+  const [search, setSearch] = useState('')
   const [sort, setSort] = useState({ key: 'name', dir: 'asc' })
 
   const [name, setName] = useState('')
@@ -101,9 +102,11 @@ export default function Exercises() {
     return dir === 'asc' ? cmp : -cmp
   }
 
+  const query = search.trim().toLowerCase()
   const shown = exercises
     .filter((x) => filter === 'all' || x.category === filter || x.split === filter)
     .filter((x) => !muscleFilter || x.muscle_group === muscleFilter)
+    .filter((x) => !query || x.name.toLowerCase().includes(query))
     .sort(compare)
 
   return (
@@ -164,6 +167,13 @@ export default function Exercises() {
       </form>
 
       <div className="row" style={{ margin: '4px 0 12px' }}>
+        <input
+          type="text"
+          placeholder="Search by name"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ minWidth: 200 }}
+        />
         {['all', 'strength', 'cardio', ...SPLIT_ORDER].map((f) => (
           <button
             key={f}
