@@ -9,7 +9,7 @@ function Nav() {
     <nav className="nav">
       <span className="brand">🏋️ Fitness Tracker</span>
       <NavLink to="/" end className={({ isActive }) => 'link' + (isActive ? ' active' : '')}>
-        History
+        Journal
       </NavLink>
       <NavLink to="/exercises" className={({ isActive }) => 'link' + (isActive ? ' active' : '')}>
         Exercises
