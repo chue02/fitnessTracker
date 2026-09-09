@@ -22,6 +22,9 @@ export default function NewWorkout() {
   const [blocks, setBlocks] = useState([])
   const [error, setError] = useState(null)
   const [saving, setSaving] = useState(false)
+  // True while the user is editing a just-added exercise; hides the picker
+  // until they click Done.
+  const [adding, setAdding] = useState(false)
 
   useEffect(() => {
     api.get('/exercises/').then(setExercises).catch((e) => setError(e.message))
@@ -31,6 +34,7 @@ export default function NewWorkout() {
     const first =
       exercise.category === 'cardio' ? blankCardioEntry() : blankStrengthEntry()
     setBlocks((b) => [...b, { key: crypto.randomUUID(), exercise, entries: [first] }])
+    setAdding(true)
   }
 
   function updateBlock(key, updater) {
@@ -65,6 +69,8 @@ export default function NewWorkout() {
 
   function removeBlock(key) {
     setBlocks((b) => b.filter((blk) => blk.key !== key))
+    // Removing an exercise ends the current add, so bring the picker back.
+    setAdding(false)
   }
 
   async function save() {
@@ -154,7 +160,13 @@ export default function NewWorkout() {
       ))}
 
       <div style={{ margin: '16px 0' }}>
-        <ExercisePicker exercises={exercises} onPick={addExercise} />
+        {adding ? (
+          <button type="button" className="btn secondary" onClick={() => setAdding(false)}>
+            Done
+          </button>
+        ) : (
+          <ExercisePicker exercises={exercises} onPick={addExercise} />
+        )}
       </div>
 
       {error && <div className="error">{error}</div>}
