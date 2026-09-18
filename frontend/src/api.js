@@ -1,14 +1,34 @@
 // Thin fetch wrapper around the Django REST API. Relative URLs work because
 // the Vite dev server proxies /api to http://localhost:8000.
 
+const TOKEN_KEY = 'token'
+
+export function getToken() {
+  return localStorage.getItem(TOKEN_KEY)
+}
+
+export function setToken(token) {
+  localStorage.setItem(TOKEN_KEY, token)
+}
+
+export function clearToken() {
+  localStorage.removeItem(TOKEN_KEY)
+}
+
 async function request(method, path, body) {
   const opts = { method, headers: {} }
+  const token = getToken()
+  if (token) {
+    opts.headers['Authorization'] = `Token ${token}`
+  }
   if (body !== undefined) {
     opts.headers['Content-Type'] = 'application/json'
     opts.body = JSON.stringify(body)
   }
   const res = await fetch(`/api${path}`, opts)
   if (!res.ok) {
+    // A stale/invalid token: drop it so the app falls back to the login screen.
+    if (res.status === 401) clearToken()
     let detail
     try {
       detail = await res.json()

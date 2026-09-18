@@ -108,6 +108,22 @@ export function describeEntry(entry) {
   return entry.equipment ? `${summary} · ${equipmentLabel(entry.equipment)}` : summary
 }
 
+// Turn an api.js error into a readable string. DRF returns validation errors as
+// { field: [messages] } (or { non_field_errors: [...] }); fall back to the message.
+export function errorMessage(err) {
+  const detail = err && err.detail
+  if (typeof detail === 'string') return detail
+  if (detail && typeof detail === 'object') {
+    const parts = []
+    for (const [field, msgs] of Object.entries(detail)) {
+      const text = Array.isArray(msgs) ? msgs.join(' ') : String(msgs)
+      parts.push(field === 'non_field_errors' ? text : `${field}: ${text}`)
+    }
+    if (parts.length) return parts.join(' ')
+  }
+  return (err && err.message) || 'Something went wrong.'
+}
+
 // Map a resistance code to its display label.
 export function equipmentLabel(code) {
   const labels = {
