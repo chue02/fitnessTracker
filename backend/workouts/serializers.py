@@ -19,6 +19,17 @@ class ExerciseSerializer(serializers.ModelSerializer):
             "is_custom",
         ]
 
+    def validate_name(self, value):
+        # Mirrors the (owner, name) unique constraint, which DRF can't check
+        # itself because `owner` isn't a serializer field.
+        user = self.context["request"].user
+        clash = Exercise.objects.filter(owner=user, name=value)
+        if self.instance is not None:
+            clash = clash.exclude(pk=self.instance.pk)
+        if clash.exists():
+            raise serializers.ValidationError("You already have an exercise with this name.")
+        return value
+
 
 class WorkoutEntrySerializer(serializers.ModelSerializer):
     # Read-only convenience fields so the frontend can render without a second lookup.
@@ -67,6 +78,10 @@ class WorkoutEntrySerializer(serializers.ModelSerializer):
         exercise = attrs.get("exercise")
         if exercise is None:
             return attrs
+
+        user = self.context["request"].user
+        if not Exercise.objects.visible_to(user).filter(pk=exercise.pk).exists():
+            raise serializers.ValidationError({"exercise": "Unknown exercise."})
 
         if exercise.category == Exercise.Category.CARDIO:
             if attrs.get("reps") is not None or attrs.get("weight") is not None:
