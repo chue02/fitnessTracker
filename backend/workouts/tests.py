@@ -1,3 +1,4 @@
+from django.contrib.auth.models import User
 from django.core.management import call_command
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -25,7 +26,13 @@ class ExerciseModelTests(APITestCase):
             self.assertEqual(ex.split, split)
 
 
-class ExerciseApiTests(APITestCase):
+class AuthedTestCase(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user("alice", password="pw")
+        self.client.force_authenticate(self.user)
+
+
+class ExerciseApiTests(AuthedTestCase):
     def test_create_exercise_derives_split(self):
         resp = self.client.post(
             "/api/exercises/",
@@ -47,10 +54,12 @@ class ExerciseApiTests(APITestCase):
         self.assertNotIn("equipment", resp.data)
 
 
-class WorkoutEntryEquipmentTests(APITestCase):
+class WorkoutEntryEquipmentTests(AuthedTestCase):
     def test_log_set_with_resistance(self):
         """Resistance is chosen per set and round-trips through the workout API."""
-        ex = Exercise.objects.create(name="Bicep Curl", muscle_group="biceps")
+        ex = Exercise.objects.create(
+            name="Bicep Curl", muscle_group="biceps", is_custom=False
+        )
         resp = self.client.post(
             "/api/workouts/",
             {
@@ -107,3 +116,60 @@ class SeedExercisesTests(APITestCase):
         )
         call_command("seed_exercises")
         self.assertTrue(Exercise.objects.filter(name="Legacy Move").exists())
+
+
+class OwnershipTests(AuthedTestCase):
+    def setUp(self):
+        super().setUp()
+        self.bob = User.objects.create_user("bob", password="pw")
+        self.builtin = Exercise.objects.create(name="Squats", is_custom=False)
+        self.bobs_ex = Exercise.objects.create(name="Bob Lift", owner=self.bob)
+        self.bobs_workout = Workout.objects.create(owner=self.bob)
+
+    def test_requires_login(self):
+        self.client.force_authenticate(None)
+        self.assertEqual(self.client.get("/api/workouts/").status_code, 401)
+        self.assertEqual(self.client.get("/api/exercises/").status_code, 401)
+
+    def test_sees_builtins_and_own_exercises_only(self):
+        self.client.post(
+            "/api/exercises/", {"name": "Alice Lift"}, format="json"
+        )
+        names = {e["name"] for e in self.client.get("/api/exercises/").data}
+        self.assertEqual(names, {"Squats", "Alice Lift"})
+
+    def test_cannot_read_or_modify_others_workouts(self):
+        self.assertEqual(self.client.get("/api/workouts/").data, [])
+        url = f"/api/workouts/{self.bobs_workout.id}/"
+        self.assertEqual(self.client.get(url).status_code, 404)
+        self.assertEqual(self.client.delete(url).status_code, 404)
+
+    def test_new_workout_is_owned_by_creator(self):
+        resp = self.client.post(
+            "/api/workouts/", {"date": "2026-09-04", "entries": []}, format="json"
+        )
+        self.assertEqual(Workout.objects.get(pk=resp.data["id"]).owner, self.user)
+
+    def test_cannot_edit_builtin_or_others_exercise(self):
+        for ex in (self.builtin, self.bobs_ex):
+            resp = self.client.patch(
+                f"/api/exercises/{ex.id}/", {"name": "x"}, format="json"
+            )
+            self.assertEqual(resp.status_code, 404)
+
+    def test_cannot_log_others_custom_exercise(self):
+        resp = self.client.post(
+            "/api/workouts/",
+            {"date": "2026-09-04", "entries": [{"exercise": self.bobs_ex.id, "reps": 5}]},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_duplicate_exercise_name_is_a_validation_error(self):
+        self.client.post("/api/exercises/", {"name": "Alice Lift"}, format="json")
+        resp = self.client.post("/api/exercises/", {"name": "Alice Lift"}, format="json")
+        self.assertEqual(resp.status_code, 400)
+        # Another user may reuse the name.
+        self.client.force_authenticate(self.bob)
+        resp = self.client.post("/api/exercises/", {"name": "Alice Lift"}, format="json")
+        self.assertEqual(resp.status_code, 201)

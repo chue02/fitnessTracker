@@ -3,9 +3,19 @@ from django.db import models
 from django.utils import timezone
 
 
+class ExerciseQuerySet(models.QuerySet):
+    def visible_to(self, user):
+        """The shared built-in library plus the user's own custom exercises."""
+        return self.filter(
+            models.Q(owner__isnull=True, is_custom=False) | models.Q(owner=user)
+        )
+
+
 class Exercise(models.Model):
     """A movement that can be logged. Seeded library items have is_custom=False;
     users can add their own. `category` drives which entry fields are relevant."""
+
+    objects = ExerciseQuerySet.as_manager()
 
     class Category(models.TextChoices):
         STRENGTH = "strength", "Strength"
