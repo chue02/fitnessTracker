@@ -125,6 +125,56 @@ textarea { width: 100%; min-height: 60px; resize: vertical; }
 .muscle.primary.core { background: #3fb27f; }
 .muscle.secondary { border: 1px solid var(--border); color: var(--muted); }
 
+/* --- Home screen --- */
+
+/* Sun–Sat strip. Fixed 7 columns so it squeezes rather than wraps. */
+.week-strip {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  margin-top: 14px;
+}
+.week-day {
+  display: block;
+  text-align: center;
+  padding: 8px 4px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+.week-day:hover { text-decoration: none; }
+a.week-day:hover { border-color: var(--accent); }
+.week-day.today { border-color: var(--accent); }
+.week-day .week-day-num { font-weight: 600; font-size: 15px; margin-top: 2px; }
+/* Trained days get a filled marker, tinted by the workout's dominant split. */
+.week-day .dot {
+  width: 8px;
+  height: 8px;
+  margin: 8px auto 0;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+.week-day .dot.on { background: var(--accent); border-color: var(--accent); }
+.week-day .dot.on.pull { background: #f2a44f; border-color: #f2a44f; }
+.week-day .dot.on.push { background: #8b93ff; border-color: #8b93ff; }
+.week-day .dot.on.legs { background: #e05a9c; border-color: #e05a9c; }
+.week-day .dot.on.core { background: #3fb27f; border-color: #3fb27f; }
+
+/* Label-over-value stats, used by the week totals and the guest blurb. */
+.stat-row { display: flex; flex-wrap: wrap; gap: 24px; margin-top: 16px; }
+.stat-value { font-weight: 600; font-size: 16px; margin-top: 2px; }
+
+.pr-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.pr-row:last-child { border-bottom: none; padding-bottom: 0; }
+.pr-value { font-weight: 600; font-size: 16px; }
+
 .exercise-block {
   background: var(--panel-2);
   border: 1px solid var(--border);

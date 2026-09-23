@@ -41,7 +41,7 @@ export default function WorkoutDetail() {
     if (!confirm('Delete this workout?')) return
     try {
       await api.del(`/workouts/${id}/`)
-      navigate('/')
+      navigate('/journal')
     } catch (e) {
       setError(e.message)
     }
@@ -96,7 +96,7 @@ export default function WorkoutDetail() {
         </div>
       ))}
 
-      <button className="btn ghost" onClick={() => navigate('/')} style={{ marginTop: 12 }}>
+      <button className="btn ghost" onClick={() => navigate('/journal')} style={{ marginTop: 12 }}>
         ← Back to journal
       </button>
     </div>

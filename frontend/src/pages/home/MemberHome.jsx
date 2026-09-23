@@ -1,10 +1,15 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api } from '../api.js'
-import { errorMessage } from '../format.js'
-import WorkoutCard from '../components/WorkoutCard.jsx'
+import { api } from '../../api.js'
+import { errorMessage } from '../../format.js'
+import WeekSummary from './WeekSummary.jsx'
+import FavoritePRs from './FavoritePRs.jsx'
+import RecentWorkouts from './RecentWorkouts.jsx'
 
-export default function WorkoutList() {
+// The home screen for a signed-in user. One fetch of the full history feeds
+// every section — /workouts/ is owner-scoped and unpaginated, and each entry
+// carries denormalized exercise fields, so no second request is needed.
+export default function MemberHome({ user }) {
   const [workouts, setWorkouts] = useState(null)
   const [error, setError] = useState(null)
 
@@ -18,7 +23,7 @@ export default function WorkoutList() {
   return (
     <div>
       <div className="row between">
-        <h1>Workout journal</h1>
+        <h1>Welcome back, {user.username}</h1>
         <Link to="/workouts/new" className="btn">
           + New workout
         </Link>
@@ -29,7 +34,11 @@ export default function WorkoutList() {
           No workouts yet. <Link to="/workouts/new">Log your first one →</Link>
         </div>
       ) : (
-        workouts.map((w) => <WorkoutCard key={w.id} workout={w} />)
+        <>
+          <WeekSummary workouts={workouts} />
+          <FavoritePRs workouts={workouts} />
+          <RecentWorkouts workouts={workouts} />
+        </>
       )}
     </div>
   )

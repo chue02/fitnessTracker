@@ -1,4 +1,5 @@
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
+import Home from './pages/Home.jsx'
 import WorkoutList from './pages/WorkoutList.jsx'
 import NewWorkout from './pages/NewWorkout.jsx'
 import WorkoutDetail from './pages/WorkoutDetail.jsx'
@@ -12,9 +13,12 @@ function Nav() {
   return (
     <nav className="nav">
       <span className="brand">🏋️ Fitness Tracker</span>
-      {user && (
+      {user ? (
         <>
           <NavLink to="/" end className={({ isActive }) => 'link' + (isActive ? ' active' : '')}>
+            Home
+          </NavLink>
+          <NavLink to="/journal" className={({ isActive }) => 'link' + (isActive ? ' active' : '')}>
             Journal
           </NavLink>
           <NavLink to="/exercises" className={({ isActive }) => 'link' + (isActive ? ' active' : '')}>
@@ -28,6 +32,17 @@ function Nav() {
           <button className="btn small ghost" onClick={logout} style={{ marginLeft: 8 }}>
             Log out
           </button>
+        </>
+      ) : (
+        // `/` is public now, so signed-out visitors still need a way in.
+        <>
+          <span className="spacer" />
+          <NavLink to="/login" className={({ isActive }) => 'link' + (isActive ? ' active' : '')}>
+            Log in
+          </NavLink>
+          <NavLink to="/register" className="btn small">
+            Sign up
+          </NavLink>
         </>
       )}
     </nav>
@@ -50,7 +65,8 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          <Route path="/" element={<ProtectedRoute><WorkoutList /></ProtectedRoute>} />
+          <Route path="/" element={<Home />} />
+          <Route path="/journal" element={<ProtectedRoute><WorkoutList /></ProtectedRoute>} />
           <Route path="/workouts/new" element={<ProtectedRoute><NewWorkout /></ProtectedRoute>} />
           <Route path="/workouts/:id/edit" element={<ProtectedRoute><NewWorkout /></ProtectedRoute>} />
           <Route path="/workouts/:id" element={<ProtectedRoute><WorkoutDetail /></ProtectedRoute>} />
