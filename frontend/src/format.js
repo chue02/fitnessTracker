@@ -1,5 +1,23 @@
 // Small display helpers shared across pages.
 
+// --- Local dates ---
+// The API's `date` fields are plain YYYY-MM-DD days with no timezone. Both
+// helpers below stay in LOCAL time on purpose: `toISOString()` converts to UTC
+// and `new Date('2026-09-23')` parses AS UTC, either of which silently shifts
+// the day for anyone west of Greenwich.
+
+// A Date -> its local YYYY-MM-DD.
+export function isoDate(d) {
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+// A YYYY-MM-DD -> local midnight on that day.
+export function parseIso(iso) {
+  const [y, m, d] = iso.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
 // Canonical orderings — also used as deterministic tie-breakers.
 export const SPLIT_ORDER = ['pull', 'push', 'legs', 'core']
 

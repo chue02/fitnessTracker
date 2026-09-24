@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { api } from '../../api.js'
 import { errorMessage } from '../../format.js'
 import WeekSummary from './WeekSummary.jsx'
+import TrainingHabits from './TrainingHabits.jsx'
 import RecentPRs from './RecentPRs.jsx'
 import FavoritePRs from './FavoritePRs.jsx'
 
@@ -36,6 +37,7 @@ export default function MemberHome({ user }) {
       ) : (
         <>
           <WeekSummary workouts={workouts} />
+          <TrainingHabits workouts={workouts} />
           <FavoritePRs workouts={workouts} />
           <RecentPRs workouts={workouts} />
         </>

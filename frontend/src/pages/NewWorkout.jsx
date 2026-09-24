@@ -5,7 +5,7 @@ import ExercisePicker from '../components/ExercisePicker.jsx'
 import ExerciseTags from '../components/ExerciseTags.jsx'
 import SetRow from '../components/SetRow.jsx'
 import CardioRow from '../components/CardioRow.jsx'
-import { describeEntry } from '../format.js'
+import { describeEntry, isoDate } from '../format.js'
 
 function blankStrengthEntry() {
   return { reps: null, weight: null, weight_unit: 'lb', equipment: '', is_warmup: false }
@@ -62,7 +62,8 @@ export default function NewWorkout() {
   // Present when editing an existing workout; absent when creating a new one.
   const { id } = useParams()
   const [exercises, setExercises] = useState([])
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  // Local today, not UTC — an evening workout must not date itself tomorrow.
+  const [date, setDate] = useState(() => isoDate(new Date()))
   const [notes, setNotes] = useState('')
   // Each block groups one exercise with its entries (sets/segments).
   const [blocks, setBlocks] = useState([])

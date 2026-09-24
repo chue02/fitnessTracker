@@ -5,20 +5,15 @@
 //   - `weight`/`distance` are DRF DecimalFields, so they arrive as STRINGS.
 //   - `weight_unit` is per set, so a history can mix lb and kg.
 
-import { workoutSummary } from './format.js'
+import { isoDate, parseIso, SPLIT_ORDER, workoutSummary } from './format.js'
 
 const LB_PER_KG = 2.20462
 const MI_PER_KM = 0.621371
 const DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
-// Local YYYY-MM-DD. Not toISOString(), which converts to UTC and lands on the
-// wrong day for anyone west of Greenwich. Workout.date is a plain DateField, so
-// everything here buckets by this string rather than by Date objects.
-export function isoDate(d) {
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
+// Re-exported so callers of the stats module don't need two imports.
+export { isoDate }
 
 // Normalize a logged weight to pounds so mixed-unit sets are comparable.
 export function toLb(weight, unit) {
@@ -250,4 +245,120 @@ export function personalRecord(workouts, exerciseId) {
     }
   }
   return best
+}
+
+// --- Training habits ---
+
+// The Sunday of the week containing a YYYY-MM-DD, as a YYYY-MM-DD. Week keys
+// are compared as strings, so they're immune to the UTC parsing trap.
+export function weekStartIso(iso) {
+  const d = parseIso(iso)
+  d.setDate(d.getDate() - d.getDay())
+  return isoDate(d)
+}
+
+// Consecutive Sun–Sat weeks with at least one workout.
+//
+// An unlogged CURRENT week doesn't break the streak — it hasn't failed yet, it's
+// just in progress — so counting starts at last week when this week is empty.
+// Otherwise the number would collapse to 0 every Sunday morning.
+export function weekStreaks(workouts, today = new Date()) {
+  const weeks = new Set(workouts.map((w) => weekStartIso(w.date)))
+  const thisWeek = weekStartIso(isoDate(today))
+
+  // Step back one week from a week-start key.
+  const prevWeek = (iso) => {
+    const d = parseIso(iso)
+    d.setDate(d.getDate() - 7)
+    return isoDate(d)
+  }
+
+  let current = 0
+  let cursor = weeks.has(thisWeek) ? thisWeek : prevWeek(thisWeek)
+  while (weeks.has(cursor)) {
+    current += 1
+    cursor = prevWeek(cursor)
+  }
+
+  // Longest ever: walk the sorted week keys and count unbroken runs.
+  let longest = 0
+  let run = 0
+  let previous = null
+  for (const week of [...weeks].sort()) {
+    run = previous !== null && prevWeek(week) === previous ? run + 1 : 1
+    if (run > longest) longest = run
+    previous = week
+  }
+
+  return { current, longest, totalWorkouts: workouts.length }
+}
+
+// Workouts per week over the last N COMPLETED weeks. The current week is
+// excluded: a week that's only two days old would drag the average down.
+// Shorter histories divide by the weeks they actually have.
+export function avgWorkoutsPerWeek(workouts, today = new Date(), weeks = 8) {
+  if (workouts.length === 0) return 0
+  const thisWeek = weekStartIso(isoDate(today))
+
+  const start = parseIso(thisWeek)
+  start.setDate(start.getDate() - weeks * 7)
+  const windowStart = isoDate(start)
+
+  const earliestWeek = workouts.reduce(
+    (min, w) => (min === null || w.date < min ? weekStartIso(w.date) : min),
+    null,
+  )
+  const from = windowStart > earliestWeek ? windowStart : earliestWeek
+
+  // Completed weeks between `from` and the current week, at least one.
+  const spanDays = (parseIso(thisWeek) - parseIso(from)) / 86400000
+  const divisor = Math.max(1, Math.round(spanDays / 7))
+
+  const counted = workouts.filter((w) => w.date >= from && weekStartIso(w.date) !== thisWeek)
+  return Math.round((counted.length / divisor) * 10) / 10
+}
+
+// How much each split has been trained lately, and how long since it last was.
+//
+// Sessions are counted PER WORKOUT, not per set: a workout contributes +1 to
+// every distinct split it touches, so a push/pull day counts for both. The
+// question is "did I train legs", not "how much legs volume".
+//
+// `daysSince` deliberately looks past the window — a split untrained for 60 days
+// should say so rather than vanish. `null` means never trained.
+export function splitBalance(workouts, today = new Date(), windowDays = 30) {
+  const cutoff = new Date(today.getFullYear(), today.getMonth(), today.getDate() - windowDays + 1)
+  const cutoffIso = isoDate(cutoff)
+  const todayIso = isoDate(today)
+
+  const sessions = new Map()
+  const lastSeen = new Map()
+
+  for (const w of workouts) {
+    const present = new Set()
+    for (const e of w.entries) {
+      // Cardio has no split; track it as its own row.
+      present.add(e.exercise_category === 'cardio' ? 'cardio' : e.exercise_split || '')
+    }
+    present.delete('')
+    for (const key of present) {
+      if (w.date >= cutoffIso && w.date <= todayIso) {
+        sessions.set(key, (sessions.get(key) || 0) + 1)
+      }
+      const seen = lastSeen.get(key)
+      if (!seen || w.date > seen) lastSeen.set(key, w.date)
+    }
+  }
+
+  const daysBetween = (iso) =>
+    Math.round((parseIso(todayIso) - parseIso(iso)) / 86400000)
+
+  const keys = [...SPLIT_ORDER]
+  if (sessions.has('cardio') || lastSeen.has('cardio')) keys.push('cardio')
+
+  return keys.map((split) => ({
+    split,
+    sessions: sessions.get(split) || 0,
+    daysSince: lastSeen.has(split) ? daysBetween(lastSeen.get(split)) : null,
+  }))
 }

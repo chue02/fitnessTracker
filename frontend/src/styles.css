@@ -225,6 +225,38 @@ a.week-day:hover { border-color: var(--accent); }
 /* Label-over-value stats, used by the week totals and the guest blurb. */
 .stat-row { display: flex; flex-wrap: wrap; gap: 24px; margin-top: 16px; }
 .stat-value { font-weight: 600; font-size: 16px; margin-top: 2px; }
+/* Week-over-week change. Up is green; down stays grey — the arrow carries it. */
+.stat-delta { color: var(--muted); margin-top: 2px; }
+.stat-delta.up { color: var(--accent-2); }
+
+/* Split balance: one bar per split, tinted with the split hues used elsewhere. */
+.split-balance { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+.split-row {
+  display: grid;
+  grid-template-columns: 52px 1fr auto 62px;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+.split-name { font-size: 12px; text-transform: capitalize; color: var(--muted); }
+.split-name.pull { color: #f2a44f; }
+.split-name.push { color: #8b93ff; }
+.split-name.legs { color: #e05a9c; }
+.split-name.core { color: #3fb27f; }
+.split-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+.split-bar-fill { display: block; height: 100%; border-radius: 999px; background: var(--accent); }
+.split-bar-fill.pull { background: #f2a44f; }
+.split-bar-fill.push { background: #8b93ff; }
+.split-bar-fill.legs { background: #e05a9c; }
+.split-bar-fill.core { background: #3fb27f; }
+.split-count { white-space: nowrap; }
+.split-since { text-align: right; color: var(--muted); }
+.split-since.split-stale { color: var(--danger); opacity: 0.8; }
 
 .pr-row {
   display: flex;
