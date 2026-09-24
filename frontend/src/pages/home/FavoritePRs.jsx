@@ -10,7 +10,7 @@ export default function FavoritePRs({ workouts, limit = 4 }) {
   if (favorites.length === 0) {
     return (
       <div className="card">
-        <h2 style={{ marginTop: 0 }}>Personal records</h2>
+        <h2 style={{ marginTop: 0 }}>Favorite exercises</h2>
         <div className="muted small">Log a few strength workouts to see PRs here.</div>
       </div>
     )
@@ -19,7 +19,7 @@ export default function FavoritePRs({ workouts, limit = 4 }) {
   return (
     <div className="card">
       <div className="row between">
-        <h2 style={{ margin: 0 }}>Personal records</h2>
+        <h2 style={{ margin: 0 }}>Favorite exercises</h2>
         <span className="muted small">Your most-trained lifts</span>
       </div>
 
@@ -44,7 +44,7 @@ export default function FavoritePRs({ workouts, limit = 4 }) {
               {pr ? (
                 <>
                   <div className="pr-value">
-                    {pr.weight} {pr.weightUnit} × {pr.reps}
+                    {pr.weight} {pr.weightUnit}
                   </div>
                   <Link to={`/workouts/${pr.workoutId}`} className="small">
                     {pr.date}

@@ -144,6 +144,63 @@ export function topExercises(workouts, limit = 4) {
     .slice(0, limit)
 }
 
+// The most recent times a lift beat its own previous best, newest first.
+//
+// A first-ever logged set is NOT a record here: with nothing to compare against
+// there is no improvement to report, and counting them would bury a real PR
+// under every new exercise the user tries.
+export function recentRecords(workouts, limit = 5) {
+  // Oldest first, so "previous best" means what it says. The API sorts newest
+  // first by (-date, -created_at); this is that comparison reversed.
+  const ordered = [...workouts].sort(
+    (a, b) =>
+      a.date.localeCompare(b.date) ||
+      String(a.created_at).localeCompare(String(b.created_at)) ||
+      a.id - b.id,
+  )
+
+  const best = new Map() // exercise id -> the top working set so far
+  const records = []
+
+  for (const w of ordered) {
+    for (const e of w.entries) {
+      if (!isWorkingSet(e)) continue
+      const current = { lb: toLb(e.weight, e.weight_unit), weight: Number(e.weight), unit: e.weight_unit, reps: e.reps }
+      const prev = best.get(e.exercise)
+      if (!prev) {
+        best.set(e.exercise, current)
+        continue
+      }
+      if (current.lb > prev.lb) {
+        records.push({
+          exerciseId: e.exercise,
+          name: e.exercise_name,
+          split: e.exercise_split,
+          muscleGroup: e.exercise_muscle_group,
+          weight: current.weight,
+          weightUnit: current.unit,
+          reps: current.reps,
+          // Reported in the new set's unit so the delta reads consistently.
+          gain: Math.round((current.lb - prev.lb) * (current.unit === 'kg' ? 1 / LB_PER_KG : 1) * 10) / 10,
+          previousWeight: prev.weight,
+          previousUnit: prev.unit,
+          date: w.date,
+          workoutId: w.id,
+        })
+        best.set(e.exercise, current)
+      }
+    }
+  }
+
+  return records.reverse().slice(0, limit)
+}
+
+// Whether the history contains any weighted working set at all — used to tell
+// "no PRs yet" apart from "no strength training logged yet".
+export function hasWorkingSets(workouts) {
+  return workouts.some((w) => w.entries.some(isWorkingSet))
+}
+
 // Heaviest weight ever lifted for one exercise, warmups excluded. Ranked on the
 // lb-normalized value but reported in the unit it was logged in. Ties go to the
 // higher rep count, then to the first date it was hit.
