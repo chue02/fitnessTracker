@@ -138,6 +138,7 @@ textarea { width: 100%; min-height: 60px; resize: vertical; }
   display: block;
   text-align: center;
   padding: 8px 4px;
+  position: relative; /* anchors the hover tooltip */
   border: 1px solid transparent;
   border-radius: 10px;
   background: var(--panel-2);
@@ -159,6 +160,67 @@ a.week-day:hover { border-color: var(--accent); }
 .week-day .dot.on.push { background: #8b93ff; border-color: #8b93ff; }
 .week-day .dot.on.legs { background: #e05a9c; border-color: #e05a9c; }
 .week-day .dot.on.core { background: #3fb27f; border-color: #3fb27f; }
+
+/* Hover/focus tooltip explaining a day's marker. CSS-only, so the strip needs
+   no hover state in React. */
+.week-day:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.day-tip {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  width: 200px;
+  padding: 10px 12px;
+  text-align: left;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s ease;
+  pointer-events: none;
+}
+.week-day:hover .day-tip,
+.week-day:focus-visible .day-tip { opacity: 1; visibility: visible; }
+/* Little arrow, filled to match the panel. */
+.day-tip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -6px;
+  border: 6px solid transparent;
+  border-top-color: var(--panel-2);
+}
+/* The end cells would otherwise hang off the card; pin them to their edge. */
+.week-day:first-child .day-tip { left: 0; transform: none; }
+.week-day:first-child .day-tip::after { left: 28px; margin-left: 0; }
+.week-day:last-child .day-tip { left: auto; right: 0; transform: none; }
+.week-day:last-child .day-tip::after { left: auto; right: 22px; margin-left: 0; }
+
+.day-tip .tip-date {
+  font-weight: 600;
+  font-size: 13px;
+  padding-bottom: 6px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.day-tip .tip-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.day-tip .tip-line span:last-child {
+  color: var(--text);
+  font-weight: 500;
+  text-transform: capitalize;
+}
+.day-tip .tip-muscles { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
 
 /* Label-over-value stats, used by the week totals and the guest blurb. */
 .stat-row { display: flex; flex-wrap: wrap; gap: 24px; margin-top: 16px; }

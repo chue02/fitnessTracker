@@ -10,6 +10,7 @@ import { workoutSummary } from './format.js'
 const LB_PER_KG = 2.20462
 const MI_PER_KM = 0.621371
 const DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 // Local YYYY-MM-DD. Not toISOString(), which converts to UTC and lands on the
 // wrong day for anyone west of Greenwich. Workout.date is a plain DateField, so
@@ -49,63 +50,84 @@ export function weekRange(today = new Date()) {
   return { startIso: days[0], endIso: days[6], days }
 }
 
-// One cell per day of the week, carrying that day's workouts and the dominant
-// split of the first of them (used to tint the marker).
+// One cell per day of the week, carrying that day's workouts and a summary of
+// them (the dominant split tints the marker; the rest feeds the hover tooltip).
 export function weekDays(workouts, range, today = new Date()) {
   const todayIso = isoDate(today)
   return range.days.map((iso, i) => {
     const dayWorkouts = workouts.filter((w) => w.date === iso)
-    const first = dayWorkouts[0]
+    const summary = summarizeWorkouts(dayWorkouts)
     return {
       iso,
       letter: DAY_LETTERS[i],
+      dayName: DAY_NAMES[i],
       dayOfMonth: Number(iso.slice(8, 10)),
       isToday: iso === todayIso,
       workouts: dayWorkouts,
-      split: first ? workoutSummary(first.entries).split : '',
+      summary,
+      split: summary.split,
     }
   })
 }
 
-// Week-level totals, computed from the cells so the two always agree.
-export function weekTotals(days) {
+// Totals over an arbitrary set of workouts — one day's worth or a whole week.
+// `split` and `muscles` come from the shared workoutSummary so the home screen
+// labels a day the same way the journal labels a workout.
+export function summarizeWorkouts(workouts) {
   const exercises = new Set()
+  const allEntries = []
   let workoutCount = 0
   let workingSets = 0
+  let warmupSets = 0
+  let cardioSegments = 0
   let volumeLb = 0
   let cardioSeconds = 0
   let cardioDistanceMi = 0
 
-  for (const day of days) {
-    for (const w of day.workouts) {
-      workoutCount += 1
-      for (const e of w.entries) {
-        exercises.add(e.exercise)
-        if (isWorkingSet(e)) {
-          workingSets += 1
-          volumeLb += toLb(e.weight, e.weight_unit) * e.reps
-        }
-        if (e.exercise_category === 'cardio') {
-          if (e.duration_seconds != null) cardioSeconds += e.duration_seconds
-          if (e.distance != null) {
-            const n = Number(e.distance)
-            if (Number.isFinite(n)) {
-              cardioDistanceMi += e.distance_unit === 'km' ? n * MI_PER_KM : n
-            }
+  for (const w of workouts) {
+    workoutCount += 1
+    for (const e of w.entries) {
+      exercises.add(e.exercise)
+      allEntries.push(e)
+      if (isWorkingSet(e)) {
+        workingSets += 1
+        volumeLb += toLb(e.weight, e.weight_unit) * e.reps
+      }
+      if (e.exercise_category === 'strength' && e.is_warmup) warmupSets += 1
+      if (e.exercise_category === 'cardio') {
+        cardioSegments += 1
+        if (e.duration_seconds != null) cardioSeconds += e.duration_seconds
+        if (e.distance != null) {
+          const n = Number(e.distance)
+          if (Number.isFinite(n)) {
+            cardioDistanceMi += e.distance_unit === 'km' ? n * MI_PER_KM : n
           }
         }
       }
     }
   }
 
+  const { split, muscles } = workoutSummary(allEntries)
   return {
     workoutCount,
     exerciseCount: exercises.size,
     workingSets,
+    warmupSets,
+    // Every logged strength set, warmups included. Cardio segments aren't sets.
+    totalSets: allEntries.filter((e) => e.exercise_category === 'strength').length,
+    cardioSegments,
     volumeLb: Math.round(volumeLb),
     cardioSeconds,
     cardioDistanceMi,
+    split,
+    muscles,
   }
+}
+
+// Week-level totals. Derived from the same cells the strip renders, so the two
+// can never disagree.
+export function weekTotals(days) {
+  return summarizeWorkouts(days.flatMap((d) => d.workouts))
 }
 
 // The user's de facto favorite lifts: the strength exercises they log the most
