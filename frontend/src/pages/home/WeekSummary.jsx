@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { formatDuration } from '../../format.js'
 import { weekDays, weekRange, weekTotals } from '../../stats.js'
@@ -8,6 +9,9 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 function shortDate(iso) {
   return `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(8, 10))}`
 }
+
+// The strip pages back one week and no further.
+const MAX_WEEKS_BACK = 1
 
 function Stat({ label, value }) {
   return (
@@ -86,16 +90,42 @@ function DayTooltip({ day }) {
 
 // This week at a glance: a Sun–Sat strip marking the days trained, plus totals.
 export default function WeekSummary({ workouts }) {
-  const range = weekRange()
-  const days = weekDays(workouts, range)
+  // Whole weeks back from the current one; 0 is this week.
+  const [weekOffset, setWeekOffset] = useState(0)
+
+  const today = new Date()
+  const anchor = new Date(today.getFullYear(), today.getMonth(), today.getDate() - weekOffset * 7)
+  const range = weekRange(anchor)
+  // `today` stays the real today, so the highlight only appears on week 0.
+  const days = weekDays(workouts, range, today)
   const totals = weekTotals(days)
 
   return (
     <div className="card">
       <div className="row between">
-        <h2 style={{ margin: 0 }}>This week</h2>
-        <span className="muted small">
-          {shortDate(range.startIso)} – {shortDate(range.endIso)}
+        <h2 style={{ margin: 0 }}>{weekOffset === 0 ? 'This week' : 'Last week'}</h2>
+        <span className="row" style={{ gap: 8 }}>
+          <button
+            className="btn small ghost"
+            onClick={() => setWeekOffset(weekOffset + 1)}
+            disabled={weekOffset >= MAX_WEEKS_BACK}
+            aria-label="Previous week"
+            title={weekOffset >= MAX_WEEKS_BACK ? "That's as far back as this goes" : 'Previous week'}
+          >
+            ‹
+          </button>
+          <span className="muted small" style={{ minWidth: 104, textAlign: 'center' }}>
+            {shortDate(range.startIso)} – {shortDate(range.endIso)}
+          </span>
+          <button
+            className="btn small ghost"
+            onClick={() => setWeekOffset(weekOffset - 1)}
+            disabled={weekOffset === 0}
+            aria-label="Next week"
+            title={weekOffset === 0 ? 'Already on the current week' : 'Next week'}
+          >
+            ›
+          </button>
         </span>
       </div>
 
@@ -131,7 +161,13 @@ export default function WeekSummary({ workouts }) {
 
       {totals.workoutCount === 0 ? (
         <div className="muted small" style={{ marginTop: 14 }}>
-          Nothing logged this week yet. <Link to="/workouts/new">Start one →</Link>
+          {weekOffset === 0 ? (
+            <>
+              Nothing logged this week yet. <Link to="/workouts/new">Start one →</Link>
+            </>
+          ) : (
+            'No workouts logged this week.'
+          )}
         </div>
       ) : (
         <div className="stat-row">
