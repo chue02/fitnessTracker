@@ -5,7 +5,6 @@ import { errorMessage } from '../../format.js'
 import WeekSummary from './WeekSummary.jsx'
 import RecentPRs from './RecentPRs.jsx'
 import FavoritePRs from './FavoritePRs.jsx'
-import RecentWorkouts from './RecentWorkouts.jsx'
 
 // The home screen for a signed-in user. One fetch of the full history feeds
 // every section — /workouts/ is owner-scoped and unpaginated, and each entry
@@ -39,7 +38,6 @@ export default function MemberHome({ user }) {
           <WeekSummary workouts={workouts} />
           <FavoritePRs workouts={workouts} />
           <RecentPRs workouts={workouts} />
-          <RecentWorkouts workouts={workouts} />
         </>
       )}
     </div>
