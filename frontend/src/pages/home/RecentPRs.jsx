@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import ResistanceTag from '../../components/ResistanceTag.jsx'
 import { hasWorkingSets, recentRecords } from '../../stats.js'
 
 // Records set lately: the last few times a lift went above its previous best.
@@ -22,10 +23,11 @@ export default function RecentPRs({ workouts, limit = 5 }) {
         </div>
       ) : (
         records.map((r) => (
-          <div key={`${r.exerciseId}-${r.date}-${r.weight}`} className="pr-row">
+          <div key={`${r.exerciseId}-${r.equipment}-${r.date}-${r.weight}`} className="pr-row">
             <div>
               <div className="row" style={{ gap: 8 }}>
                 <span style={{ fontWeight: 600 }}>{r.name}</span>
+                <ResistanceTag equipment={r.equipment} />
                 {r.split && <span className={`pill ${r.split}`}>{r.split}</span>}
               </div>
               <div className="muted small" style={{ marginTop: 4 }}>

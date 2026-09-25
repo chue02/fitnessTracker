@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import ExerciseTags from '../../components/ExerciseTags.jsx'
+import ResistanceTag from '../../components/ResistanceTag.jsx'
 import { personalRecord, topExercises } from '../../stats.js'
 
 // Personal records for the lifts the user trains most. "Favorite" is derived
@@ -24,12 +25,13 @@ export default function FavoritePRs({ workouts, limit = 4 }) {
       </div>
 
       {favorites.map((ex) => {
-        const pr = personalRecord(workouts, ex.id)
+        const pr = personalRecord(workouts, ex.id, ex.equipment)
         return (
-          <div key={ex.id} className="pr-row">
+          <div key={ex.key} className="pr-row">
             <div>
               <div className="row" style={{ gap: 8 }}>
                 <span style={{ fontWeight: 600 }}>{ex.name}</span>
+                <ResistanceTag equipment={ex.equipment} />
                 <ExerciseTags
                   split={ex.split}
                   muscleGroup={ex.muscleGroup}

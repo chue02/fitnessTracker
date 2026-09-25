@@ -125,6 +125,19 @@ textarea { width: 100%; min-height: 60px; resize: vertical; }
 .muscle.primary.core { background: #3fb27f; }
 .muscle.secondary { border: 1px solid var(--border); color: var(--muted); }
 
+/* The resistance a lift was done on, worn beside its name. Lower-contrast than
+   a split pill so it reads as a qualifier, not a category. */
+.res-tag {
+  display: inline-block;
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  background: var(--panel-2);
+  white-space: nowrap;
+}
+
 /* --- Home screen --- */
 
 /* Sun–Sat strip. Fixed 7 columns so it squeezes rather than wraps. */
@@ -271,6 +284,93 @@ a.week-day:hover { border-color: var(--accent); }
 .pr-row:last-child { border-bottom: none; padding-bottom: 0; }
 .pr-value { font-weight: 600; font-size: 16px; }
 .pr-gain { color: var(--accent-2); font-weight: 600; margin-top: 2px; }
+
+/* Last-7-days pivot table. */
+.breakdown { margin-top: 14px; }
+/* Tabular figures so the number columns line up digit for digit. */
+.breakdown .bd-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.breakdown td, .breakdown th { padding: 5px 8px; }
+.breakdown tbody tr:hover td { background: rgba(255, 255, 255, 0.02); }
+/* Split group header — a label and a collapse control, no numbers. */
+.breakdown tr.bd-split th {
+  background: var(--panel-2);
+  border-top: 1px solid var(--border);
+  padding: 4px 8px;
+}
+.breakdown .bd-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 0;
+  text-align: left;
+}
+.breakdown .bd-toggle:hover .pill { filter: brightness(1.25); }
+.breakdown .bd-caret { width: 10px; }
+.breakdown .bd-muscle { text-transform: capitalize; }
+.breakdown td .res-tag { margin-left: 8px; }
+
+/* Self-explaining column headings. Same CSS-only pattern as the week strip's
+   day tooltip, but dropping DOWN so it never covers the card's own title. */
+.breakdown thead th {
+  position: relative;
+  cursor: help;
+}
+.breakdown thead th:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.col-tip {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: block;
+  width: 220px;
+  padding: 9px 11px;
+  text-align: left;
+  white-space: normal;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s ease;
+  pointer-events: none;
+}
+.breakdown thead th:hover .col-tip,
+.breakdown thead th:focus-visible .col-tip { opacity: 1; visibility: visible; }
+/* Arrow, filled to match the panel. */
+.col-tip::after {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  margin-left: -6px;
+  border: 6px solid transparent;
+  border-bottom-color: var(--panel-2);
+}
+/* End columns would hang off the card; pin them to their edge instead. */
+.breakdown thead th:first-child .col-tip { left: 0; transform: none; }
+.breakdown thead th:first-child .col-tip::after { left: 24px; margin-left: 0; }
+.breakdown thead th:last-child .col-tip { left: auto; right: 0; transform: none; }
+.breakdown thead th:last-child .col-tip::after { left: auto; right: 24px; margin-left: 0; }
+
+.col-tip-title {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 3px;
+}
+.col-tip-body { display: block; font-size: 12px; color: var(--muted); line-height: 1.45; }
 
 .exercise-block {
   background: var(--panel-2);
