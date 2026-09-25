@@ -160,6 +160,8 @@ a.week-day:hover { border-color: var(--accent); }
 .week-day .dot.on.push { background: #8b93ff; border-color: #8b93ff; }
 .week-day .dot.on.legs { background: #e05a9c; border-color: #e05a9c; }
 .week-day .dot.on.core { background: #3fb27f; border-color: #3fb27f; }
+/* Cardio-only days: match the cardio pill rather than the default accent. */
+.week-day .dot.on.cardio { background: var(--accent-2); border-color: var(--accent-2); }
 
 /* Hover/focus tooltip explaining a day's marker. CSS-only, so the strip needs
    no hover state in React. */

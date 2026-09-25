@@ -148,11 +148,15 @@ export default function WeekSummary({ workouts }) {
 
       <div className="week-strip">
         {days.map((day) => {
+          // Cardio has no split, so a cardio-only day would fall through to the
+          // default accent and look identical to strength. Tint it like the
+          // cardio pill instead. A mixed day keeps its split hue.
+          const tone = day.split || (day.summary.cardioSegments > 0 ? 'cardio' : '')
           const cell = (
             <>
               <div className="muted small">{day.letter}</div>
               <div className="week-day-num">{day.dayOfMonth}</div>
-              <div className={`dot ${day.workouts.length ? `on ${day.split}` : ''}`.trim()} />
+              <div className={`dot ${day.workouts.length ? `on ${tone}` : ''}`.trim()} />
               <DayTooltip day={day} />
             </>
           )
