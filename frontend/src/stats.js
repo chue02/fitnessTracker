@@ -5,7 +5,9 @@
 //   - `weight`/`distance` are DRF DecimalFields, so they arrive as STRINGS.
 //   - `weight_unit` is per set, so a history can mix lb and kg.
 
-import { isoDate, parseIso, SPLIT_ORDER, workoutSummary } from './format.js'
+import {
+  EQUIPMENT_ORDER, isoDate, MUSCLE_ORDER, parseIso, SPLIT_ORDER, workoutSummary,
+} from './format.js'
 
 const LB_PER_KG = 2.20462
 const MI_PER_KM = 0.621371
@@ -361,4 +363,130 @@ export function splitBalance(workouts, today = new Date(), windowDays = 30) {
     sessions: sessions.get(split) || 0,
     daysSince: lastSeen.has(split) ? daysBetween(lastSeen.get(split)) : null,
   }))
+}
+
+// --- Last-7-days breakdown ---
+// A pivot of recent training: per split, then either per resistance+exercise or
+// per muscle. Mirrors the columns of the user's spreadsheet:
+//   MAX Lbs, Lbs Wtd Avg, SUM of Sets, SUM of Reps, Avg Reps/Set
+// where the weighted average is volume over reps, i.e. Σ(weight × reps) / Σ(reps).
+
+// Roll a list of sets into that stat line. Weight-less (bodyweight) sets still
+// count toward sets/reps but can't contribute to a load average, so a group
+// with no loaded sets reports null rather than a misleading 0.
+function statsFor(entries) {
+  let sets = 0
+  let reps = 0
+  let volumeLb = 0
+  let loadedReps = 0
+  let maxLb = null
+
+  for (const e of entries) {
+    sets += 1
+    const r = e.reps ?? 0
+    reps += r
+    if (e.weight != null) {
+      const lb = toLb(e.weight, e.weight_unit)
+      if (maxLb === null || lb > maxLb) maxLb = lb
+      volumeLb += lb * r
+      loadedReps += r
+    }
+  }
+
+  return {
+    sets,
+    reps,
+    maxLb,
+    wtdAvgLb: loadedReps > 0 ? volumeLb / loadedReps : null,
+    avgRepsPerSet: sets > 0 ? reps / sets : 0,
+  }
+}
+
+// Every strength set from the trailing `days`-day window, warmups excluded.
+function recentStrengthEntries(workouts, today, days) {
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (days - 1))
+  const startIso = isoDate(start)
+  const endIso = isoDate(today)
+
+  const out = []
+  for (const w of workouts) {
+    if (w.date < startIso || w.date > endIso) continue
+    for (const e of w.entries) {
+      // Cardio has no reps or load, and warmups would deflate the averages.
+      if (e.exercise_category !== 'strength' || e.is_warmup) continue
+      out.push(e)
+    }
+  }
+  return out
+}
+
+// `by: 'exercise'` groups split -> resistance -> exercise; `by: 'muscle'`
+// groups split -> primary muscle. Returns one section per split, each with its
+// own subtotal. No grand total — the splits don't meaningfully sum.
+export function weeklyBreakdown(workouts, { by = 'exercise', today = new Date(), days = 7 } = {}) {
+  const entries = recentStrengthEntries(workouts, today, days)
+
+  // split -> row key -> entries
+  const bySplit = new Map()
+  for (const e of entries) {
+    const split = e.exercise_split || 'other'
+    if (!bySplit.has(split)) bySplit.set(split, new Map())
+    const rows = bySplit.get(split)
+
+    const key =
+      by === 'muscle'
+        ? e.exercise_muscle_group || 'other'
+        // Resistance is recorded per set, so the same lift done on a bar and on
+        // a machine is two rows — which is what "per exercise per resistance" means.
+        : `${e.equipment || ''}::${e.exercise}`
+    if (!rows.has(key)) rows.set(key, [])
+    rows.get(key).push(e)
+  }
+
+  const splitRank = (s) => {
+    const i = SPLIT_ORDER.indexOf(s)
+    return i === -1 ? SPLIT_ORDER.length : i
+  }
+
+  return [...bySplit.entries()]
+    .sort((a, b) => splitRank(a[0]) - splitRank(b[0]) || a[0].localeCompare(b[0]))
+    .map(([split, rowMap]) => {
+      const rows = [...rowMap.entries()].map(([key, group]) => {
+        const first = group[0]
+        return by === 'muscle'
+          ? { key, group: null, label: key, ...statsFor(group) }
+          : {
+              key,
+              group: first.equipment || '',
+              label: first.exercise_name,
+              ...statsFor(group),
+            }
+      })
+
+      if (by === 'muscle') {
+        rows.sort(
+          (a, b) =>
+            MUSCLE_ORDER.indexOf(a.label) - MUSCLE_ORDER.indexOf(b.label) ||
+            a.label.localeCompare(b.label),
+        )
+      } else {
+        const rank = (code) => {
+          const i = EQUIPMENT_ORDER.indexOf(code)
+          return i === -1 ? EQUIPMENT_ORDER.length : i
+        }
+        // Resistance groups in canonical order; within one, heaviest workload first.
+        rows.sort(
+          (a, b) =>
+            rank(a.group) - rank(b.group) ||
+            b.sets - a.sets ||
+            a.label.localeCompare(b.label),
+        )
+      }
+
+      return {
+        split,
+        rows,
+        totals: statsFor([...rowMap.values()].flat()),
+      }
+    })
 }

@@ -142,6 +142,11 @@ export function errorMessage(err) {
   return (err && err.message) || 'Something went wrong.'
 }
 
+// Canonical resistance ordering, used to group breakdown tables.
+export const EQUIPMENT_ORDER = [
+  'barbell', 'dumbbell', 'cable', 'machine', 'plates_machine', 'calisthenics',
+]
+
 // Map a resistance code to its display label.
 export function equipmentLabel(code) {
   const labels = {

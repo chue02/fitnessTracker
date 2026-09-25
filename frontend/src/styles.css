@@ -272,6 +272,34 @@ a.week-day:hover { border-color: var(--accent); }
 .pr-value { font-weight: 600; font-size: 16px; }
 .pr-gain { color: var(--accent-2); font-weight: 600; margin-top: 2px; }
 
+/* Last-7-days pivot table. */
+.breakdown { margin-top: 14px; }
+/* Tabular figures so the number columns line up digit for digit. */
+.breakdown .bd-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.breakdown td, .breakdown th { padding: 5px 8px; }
+.breakdown tbody tr:hover td { background: rgba(255, 255, 255, 0.02); }
+/* Split header doubles as the subtotal row, so it stays readable when collapsed. */
+.breakdown tr.bd-split { cursor: pointer; }
+.breakdown tr.bd-split th,
+.breakdown tr.bd-split td {
+  background: var(--panel-2);
+  border-top: 1px solid var(--border);
+  font-weight: 600;
+  color: var(--text);
+}
+.breakdown tr.bd-split:hover th,
+.breakdown tr.bd-split:hover td { background: #262b3a; }
+.breakdown .bd-toggle {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0 6px 0 0;
+}
+.breakdown .bd-group { white-space: nowrap; }
+.breakdown .bd-muscle { text-transform: capitalize; }
+
 .exercise-block {
   background: var(--panel-2);
   border: 1px solid var(--border);
