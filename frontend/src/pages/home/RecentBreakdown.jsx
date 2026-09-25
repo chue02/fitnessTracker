@@ -5,6 +5,52 @@ import { weeklyBreakdown } from '../../stats.js'
 const WINDOW_DAYS = 7
 const COLUMNS = 6
 
+// The five stat columns, each with a short explanation surfaced on hover.
+// WAVG is the one that genuinely needs explaining: it's volume per rep, so a
+// heavy set of 5 counts for more than a light set of 5 — not a flat mean of
+// the set weights.
+const STAT_COLUMNS = [
+  {
+    key: 'maxLb',
+    label: 'Max lb',
+    title: 'Heaviest set',
+    body: 'The single heaviest load lifted. Sets logged in kg are converted to pounds.',
+  },
+  {
+    key: 'wtdAvgLb',
+    label: 'WAVG',
+    title: 'Weighted average load',
+    body: 'Total volume ÷ total reps, so heavier sets pull the average up more than light ones.',
+  },
+  {
+    key: 'sets',
+    label: 'Sets',
+    title: 'Sets logged',
+    body: 'Working sets only — warmups are excluded from every column here.',
+  },
+  { key: 'reps', label: 'Reps', title: 'Total reps', body: 'Every rep across those sets, added up.' },
+  {
+    key: 'avgRepsPerSet',
+    label: 'Reps/set',
+    title: 'Average reps per set',
+    body: 'Total reps ÷ total sets.',
+  },
+]
+
+// A column heading that explains itself. Hover or keyboard focus reveals it;
+// the tooltip is pure CSS, so there's no hover state to track in React.
+function ColHeader({ label, title, body, numeric = false }) {
+  return (
+    <th className={numeric ? 'bd-num' : undefined} tabIndex={0} scope="col">
+      {label}
+      <span className="col-tip" role="tooltip">
+        <span className="col-tip-title">{title}</span>
+        <span className="col-tip-body">{body}</span>
+      </span>
+    </th>
+  )
+}
+
 // At most one decimal, with a trailing ".0" trimmed — 32.5 stays 32.5, 40.0
 // becomes 40. Null means there was nothing to measure (e.g. bodyweight only).
 function num(n) {
@@ -58,12 +104,19 @@ export default function RecentBreakdown({ workouts }) {
         <table className="breakdown">
           <thead>
             <tr>
-              <th>{byMuscle ? 'Muscle' : 'Exercise'}</th>
-              <th className="bd-num">Max lb</th>
-              <th className="bd-num">Wtd avg</th>
-              <th className="bd-num">Sets</th>
-              <th className="bd-num">Reps</th>
-              <th className="bd-num">Reps/set</th>
+              <ColHeader
+                label={byMuscle ? 'Muscle' : 'Exercise'}
+                title={byMuscle ? 'Primary muscle' : 'Exercise'}
+                body={
+                  byMuscle
+                    ? 'Each lift counts toward its primary muscle only, not the secondary ones it also works.'
+                    : 'The lift, tagged with the resistance it was performed on. The same lift on two resistances is two rows.'
+                }
+              />
+              {/* `key` is destructured out so it isn't spread into props. */}
+              {STAT_COLUMNS.map(({ key, ...col }) => (
+                <ColHeader key={key} numeric {...col} />
+              ))}
             </tr>
           </thead>
           <tbody>
