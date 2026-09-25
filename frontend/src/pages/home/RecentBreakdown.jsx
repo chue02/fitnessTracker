@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { equipmentLabel } from '../../format.js'
+import ResistanceTag from '../../components/ResistanceTag.jsx'
 import { weeklyBreakdown } from '../../stats.js'
 
 const WINDOW_DAYS = 7
+const COLUMNS = 6
 
 // At most one decimal, with a trailing ".0" trimmed — 32.5 stays 32.5, 40.0
 // becomes 40. Null means there was nothing to measure (e.g. bodyweight only).
@@ -12,29 +13,15 @@ function num(n) {
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
 }
 
-function StatCells({ stats }) {
-  return (
-    <>
-      <td className="bd-num">{num(stats.maxLb)}</td>
-      <td className="bd-num">{num(stats.wtdAvgLb)}</td>
-      <td className="bd-num">{stats.sets}</td>
-      <td className="bd-num">{stats.reps}</td>
-      <td className="bd-num">{num(stats.avgRepsPerSet)}</td>
-    </>
-  )
-}
-
-// A pivot of the last week's lifting, by resistance+exercise or by muscle.
-// Modelled on the user's spreadsheet: Lbs Wtd Avg is Σ(weight × reps) / Σ(reps),
-// i.e. volume per rep, not a flat mean of the set weights.
+// A pivot of the last week's lifting, by exercise or by muscle. Modelled on the
+// user's spreadsheet: Lbs Wtd Avg is Σ(weight × reps) / Σ(reps), i.e. volume per
+// rep, not a flat mean of the set weights.
 export default function RecentBreakdown({ workouts }) {
   const [by, setBy] = useState('exercise')
   const [collapsed, setCollapsed] = useState(() => new Set())
 
   const sections = weeklyBreakdown(workouts, { by, days: WINDOW_DAYS })
   const byMuscle = by === 'muscle'
-  // Muscle view drops the resistance column.
-  const labelSpan = byMuscle ? 1 : 2
 
   function toggle(split) {
     const next = new Set(collapsed)
@@ -49,7 +36,7 @@ export default function RecentBreakdown({ workouts }) {
         <h2 style={{ margin: 0 }}>Last {WINDOW_DAYS} days</h2>
         <span className="row" style={{ gap: 6 }}>
           <button
-            className={`btn small${by === 'exercise' ? '' : ' ghost'}`}
+            className={`btn small${byMuscle ? ' ghost' : ''}`}
             onClick={() => setBy('exercise')}
           >
             By exercise
@@ -71,14 +58,7 @@ export default function RecentBreakdown({ workouts }) {
         <table className="breakdown">
           <thead>
             <tr>
-              {byMuscle ? (
-                <th>Muscle</th>
-              ) : (
-                <>
-                  <th>Resistance</th>
-                  <th>Exercise</th>
-                </>
-              )}
+              <th>{byMuscle ? 'Muscle' : 'Exercise'}</th>
               <th className="bd-num">Max lb</th>
               <th className="bd-num">Wtd avg</th>
               <th className="bd-num">Sets</th>
@@ -87,19 +67,15 @@ export default function RecentBreakdown({ workouts }) {
             </tr>
           </thead>
           <tbody>
-            {sections.map((section) => {
-              const isCollapsed = collapsed.has(section.split)
-              return (
-                <Section
-                  key={section.split}
-                  section={section}
-                  byMuscle={byMuscle}
-                  labelSpan={labelSpan}
-                  isCollapsed={isCollapsed}
-                  onToggle={() => toggle(section.split)}
-                />
-              )
-            })}
+            {sections.map((section) => (
+              <Section
+                key={section.split}
+                section={section}
+                byMuscle={byMuscle}
+                isCollapsed={collapsed.has(section.split)}
+                onToggle={() => toggle(section.split)}
+              />
+            ))}
           </tbody>
         </table>
       )}
@@ -107,42 +83,34 @@ export default function RecentBreakdown({ workouts }) {
   )
 }
 
-function Section({ section, byMuscle, labelSpan, isCollapsed, onToggle }) {
+function Section({ section, byMuscle, isCollapsed, onToggle }) {
   return (
     <>
-      {/* The split's subtotal rides on the header rather than sitting in a
-          footer row, so the numbers stay visible while the group is collapsed. */}
-      <tr className="bd-split" onClick={onToggle}>
-        <th colSpan={labelSpan} scope="rowgroup">
+      <tr className="bd-split">
+        <th colSpan={COLUMNS} scope="rowgroup">
           <button
             className="bd-toggle"
             aria-expanded={!isCollapsed}
-            aria-label={`${isCollapsed ? 'Expand' : 'Collapse'} ${section.split}`}
-            onClick={(e) => {
-              e.stopPropagation()
-              onToggle()
-            }}
+            onClick={onToggle}
           >
-            {isCollapsed ? '▸' : '▾'}
+            <span className="bd-caret">{isCollapsed ? '▸' : '▾'}</span>
+            <span className={`pill ${section.split}`}>{section.split}</span>
           </button>
-          <span className={`pill ${section.split}`}>{section.split}</span>
         </th>
-        <StatCells stats={section.totals} />
       </tr>
 
       {!isCollapsed &&
-        section.rows.map((row, i) => (
+        section.rows.map((row) => (
           <tr key={row.key}>
-            {!byMuscle && (
-              // Repeat the resistance only when it changes, as the sheet does.
-              <td className="bd-group muted small">
-                {i === 0 || section.rows[i - 1].group !== row.group
-                  ? equipmentLabel(row.group) || '—'
-                  : ''}
-              </td>
-            )}
-            <td className={byMuscle ? 'bd-muscle' : ''}>{row.label}</td>
-            <StatCells stats={row} />
+            <td className={byMuscle ? 'bd-muscle' : ''}>
+              {row.label}
+              {!byMuscle && <ResistanceTag equipment={row.group} />}
+            </td>
+            <td className="bd-num">{num(row.maxLb)}</td>
+            <td className="bd-num">{num(row.wtdAvgLb)}</td>
+            <td className="bd-num">{row.sets}</td>
+            <td className="bd-num">{row.reps}</td>
+            <td className="bd-num">{num(row.avgRepsPerSet)}</td>
           </tr>
         ))}
     </>

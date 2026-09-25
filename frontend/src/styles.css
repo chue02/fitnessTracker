@@ -125,6 +125,19 @@ textarea { width: 100%; min-height: 60px; resize: vertical; }
 .muscle.primary.core { background: #3fb27f; }
 .muscle.secondary { border: 1px solid var(--border); color: var(--muted); }
 
+/* The resistance a lift was done on, worn beside its name. Lower-contrast than
+   a split pill so it reads as a qualifier, not a category. */
+.res-tag {
+  display: inline-block;
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  background: var(--panel-2);
+  white-space: nowrap;
+}
+
 /* --- Home screen --- */
 
 /* Sun–Sat strip. Fixed 7 columns so it squeezes rather than wraps. */
@@ -278,27 +291,29 @@ a.week-day:hover { border-color: var(--accent); }
 .breakdown .bd-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .breakdown td, .breakdown th { padding: 5px 8px; }
 .breakdown tbody tr:hover td { background: rgba(255, 255, 255, 0.02); }
-/* Split header doubles as the subtotal row, so it stays readable when collapsed. */
-.breakdown tr.bd-split { cursor: pointer; }
-.breakdown tr.bd-split th,
-.breakdown tr.bd-split td {
+/* Split group header — a label and a collapse control, no numbers. */
+.breakdown tr.bd-split th {
   background: var(--panel-2);
   border-top: 1px solid var(--border);
-  font-weight: 600;
-  color: var(--text);
+  padding: 4px 8px;
 }
-.breakdown tr.bd-split:hover th,
-.breakdown tr.bd-split:hover td { background: #262b3a; }
 .breakdown .bd-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
   background: none;
   border: none;
   color: var(--muted);
   cursor: pointer;
   font-size: 12px;
-  padding: 0 6px 0 0;
+  padding: 2px 0;
+  text-align: left;
 }
-.breakdown .bd-group { white-space: nowrap; }
+.breakdown .bd-toggle:hover .pill { filter: brightness(1.25); }
+.breakdown .bd-caret { width: 10px; }
 .breakdown .bd-muscle { text-transform: capitalize; }
+.breakdown td .res-tag { margin-left: 8px; }
 
 .exercise-block {
   background: var(--panel-2);

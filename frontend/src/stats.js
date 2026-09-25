@@ -135,10 +135,17 @@ export function topExercises(workouts, limit = 4) {
   for (const w of workouts) {
     for (const e of w.entries) {
       if (e.exercise_category !== 'strength') continue
-      let row = byExercise.get(e.exercise)
+      // Resistance is part of the lift's identity: a barbell chest press and a
+      // machine chest press are different movements with different records, and
+      // pooling them lets the easier one shadow the real best.
+      const equipment = e.equipment || ''
+      const key = `${e.exercise}::${equipment}`
+      let row = byExercise.get(key)
       if (!row) {
         row = {
+          key,
           id: e.exercise,
+          equipment,
           name: e.exercise_name,
           muscleGroup: e.exercise_muscle_group,
           split: e.exercise_split,
@@ -146,7 +153,7 @@ export function topExercises(workouts, limit = 4) {
           setCount: 0,
           lastDate: w.date,
         }
-        byExercise.set(e.exercise, row)
+        byExercise.set(key, row)
       }
       row.setCount += 1
       if (w.date > row.lastDate) row.lastDate = w.date
@@ -184,15 +191,18 @@ export function recentRecords(workouts, limit = 5) {
   for (const w of ordered) {
     for (const e of w.entries) {
       if (!isWorkingSet(e)) continue
+      const equipment = e.equipment || ''
+      const key = `${e.exercise}::${equipment}`
       const current = { lb: toLb(e.weight, e.weight_unit), weight: Number(e.weight), unit: e.weight_unit, reps: e.reps }
-      const prev = best.get(e.exercise)
+      const prev = best.get(key)
       if (!prev) {
-        best.set(e.exercise, current)
+        best.set(key, current)
         continue
       }
       if (current.lb > prev.lb) {
         records.push({
           exerciseId: e.exercise,
+          equipment,
           name: e.exercise_name,
           split: e.exercise_split,
           muscleGroup: e.exercise_muscle_group,
@@ -206,7 +216,7 @@ export function recentRecords(workouts, limit = 5) {
           date: w.date,
           workoutId: w.id,
         })
-        best.set(e.exercise, current)
+        best.set(key, current)
       }
     }
   }
@@ -223,11 +233,14 @@ export function hasWorkingSets(workouts) {
 // Heaviest weight ever lifted for one exercise, warmups excluded. Ranked on the
 // lb-normalized value but reported in the unit it was logged in. Ties go to the
 // higher rep count, then to the first date it was hit.
-export function personalRecord(workouts, exerciseId) {
+// `equipment` narrows the record to one resistance (pass '' for sets logged
+// without one). Omit it to rank every resistance together.
+export function personalRecord(workouts, exerciseId, equipment = null) {
   let best = null
   for (const w of workouts) {
     for (const e of w.entries) {
       if (e.exercise !== exerciseId || !isWorkingSet(e)) continue
+      if (equipment !== null && (e.equipment || '') !== equipment) continue
       const lb = toLb(e.weight, e.weight_unit)
       const better =
         !best ||
@@ -474,12 +487,10 @@ export function weeklyBreakdown(workouts, { by = 'exercise', today = new Date(),
           const i = EQUIPMENT_ORDER.indexOf(code)
           return i === -1 ? EQUIPMENT_ORDER.length : i
         }
-        // Resistance groups in canonical order; within one, heaviest workload first.
+        // Alphabetical by lift, so the same movement on two resistances sits
+        // on adjacent rows — the resistance tag is what tells them apart.
         rows.sort(
-          (a, b) =>
-            rank(a.group) - rank(b.group) ||
-            b.sets - a.sets ||
-            a.label.localeCompare(b.label),
+          (a, b) => a.label.localeCompare(b.label) || rank(a.group) - rank(b.group),
         )
       }
 
