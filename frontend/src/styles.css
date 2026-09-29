@@ -456,7 +456,7 @@ th { color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--borde
 .drag-handle:active { cursor: grabbing; }
 .sortable-item .exercise-block:not(.condensed) { cursor: grab; }
 /* Text and controls aren't grips, so don't advertise one over them. */
-.sortable-item .exercise-block :is(.name, .pill, .muscle, .res-tag, .idx, .condensed-summary) { cursor: auto; }
+.sortable-item .exercise-block:not(.condensed) :is(.name, .pill, .muscle, .res-tag, .idx) { cursor: auto; }
 .sortable-item .exercise-block :is(input, select) { cursor: auto; }
 .dragging .exercise-block {
   border-color: var(--accent);

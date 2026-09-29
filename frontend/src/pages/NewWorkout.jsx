@@ -241,7 +241,7 @@ export default function NewWorkout() {
                 <div
                   className="exercise-block condensed"
                   onClick={() => setActiveKey(block.key)}
-                  title="Click to edit"
+                  title="Click to edit, drag to reorder"
                 >
                   <div className="head">
                     {handle}

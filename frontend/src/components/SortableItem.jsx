@@ -12,17 +12,38 @@ import { CSS } from '@dnd-kit/utilities'
 
 const INTERACTIVE = 'button, input, select, textarea, a, label, [contenteditable]'
 
-// Whether a press on `el` may start a drag. The whole card is draggable, but
-// only from its empty space: controls keep working, and anything that renders
-// its own text (exercise name, pills, set summary) stays selectable. The handle
+// Whether the point (x, y) is on `el`'s own text. A styled chip (pill, muscle
+// tag — anything with a border or background) counts as content across its
+// whole box; for plain text blocks only the rendered glyphs count, so the
+// blank space after a short line (e.g. a set summary) is still a grip.
+function isOnOwnText(el, x, y) {
+  const texts = [...el.childNodes].filter(
+    (n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim()
+  )
+  if (texts.length === 0) return false
+  const cs = getComputedStyle(el)
+  if (parseFloat(cs.borderTopWidth) > 0 || cs.backgroundColor !== 'rgba(0, 0, 0, 0)') return true
+  if (x == null) return true
+  const range = document.createRange()
+  const pad = 2
+  return texts.some((n) => {
+    range.selectNodeContents(n)
+    return [...range.getClientRects()].some(
+      (r) => x >= r.left - pad && x <= r.right + pad && y >= r.top - pad && y <= r.bottom + pad
+    )
+  })
+}
+
+// Whether a press may start a drag. The whole card is draggable, but only from
+// its empty space: controls keep working and text stays selectable. The handle
 // is always a valid grip.
-function isDragSurface(el) {
+function isDragSurface(event) {
+  const el = event.target
   if (!(el instanceof Element)) return false
   if (el.closest('[data-drag-handle]')) return true
   if (el.closest(INTERACTIVE)) return false
-  return ![...el.childNodes].some(
-    (n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim()
-  )
+  const point = event.touches?.[0] ?? event
+  return !isOnOwnText(el, point.clientX, point.clientY)
 }
 
 // Wrap a dnd-kit sensor so it only activates from a drag surface.
@@ -30,7 +51,7 @@ function surfaceOnly(Sensor) {
   return class extends Sensor {
     static activators = Sensor.activators.map(({ eventName, handler }) => ({
       eventName,
-      handler: (event, options) => isDragSurface(event.nativeEvent.target) && handler(event, options),
+      handler: (event, options) => isDragSurface(event.nativeEvent) && handler(event, options),
     }))
   }
 }
