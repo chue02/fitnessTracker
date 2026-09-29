@@ -1,25 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import {
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core'
-import {
-  SortableContext,
-  arrayMove,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable'
+import { DndContext, closestCenter } from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { api } from '../api.js'
 import ExercisePicker from '../components/ExercisePicker.jsx'
 import ExerciseTags from '../components/ExerciseTags.jsx'
 import SetRow from '../components/SetRow.jsx'
 import CardioRow from '../components/CardioRow.jsx'
-import SortableItem from '../components/SortableItem.jsx'
+import SortableItem, { moveByKey, useReorderSensors } from '../components/SortableItem.jsx'
 import SaveAsTemplate from '../components/SaveAsTemplate.jsx'
 import { describeEntry, isoDate } from '../format.js'
 import { blocksToTemplateExercises, templateToBlocks } from '../templates.js'
@@ -119,20 +107,10 @@ export default function NewWorkout() {
     setActiveKey(null)
   }
 
-  // Drag starts only from a card's handle; a small distance threshold keeps a
-  // plain tap on the handle from counting as a drag.
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
+  const sensors = useReorderSensors()
 
-  function handleDragEnd({ active, over }) {
-    if (!over || active.id === over.id) return
-    setBlocks((b) => {
-      const from = b.findIndex((blk) => blk.key === active.id)
-      const to = b.findIndex((blk) => blk.key === over.id)
-      return arrayMove(b, from, to)
-    })
+  function handleDragEnd(event) {
+    setBlocks((b) => moveByKey(b, event))
   }
 
   // When editing, load the existing workout and hydrate the form from it.

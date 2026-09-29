@@ -437,8 +437,10 @@ th { color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--borde
 .combo-option:hover { background: var(--accent); color: #12141c; }
 .combo-empty { padding: 10px; color: var(--muted); font-size: 14px; }
 
-/* Drag handle on exercise cards in the workout editor. `touch-action: none`
-   lets a finger drag the card instead of scrolling the page. */
+/* Drag handle on reorderable exercise cards. The whole card's empty space is
+   also a grip (see SortableItem); the handle is the visible cue and the
+   keyboard target. `touch-action: none` lets a finger on the handle drag
+   instead of scrolling. */
 .drag-handle {
   background: none;
   border: none;
@@ -452,6 +454,10 @@ th { color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--borde
 }
 .drag-handle:hover, .drag-handle:focus-visible { color: var(--text); }
 .drag-handle:active { cursor: grabbing; }
+.sortable-item .exercise-block:not(.condensed) { cursor: grab; }
+/* Text and controls aren't grips, so don't advertise one over them. */
+.sortable-item .exercise-block :is(.name, .pill, .muscle, .res-tag, .idx, .condensed-summary) { cursor: auto; }
+.sortable-item .exercise-block :is(input, select) { cursor: auto; }
 .dragging .exercise-block {
   border-color: var(--accent);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);

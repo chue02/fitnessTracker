@@ -1,22 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import {
-  DndContext,
-  KeyboardSensor,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core'
-import {
-  SortableContext,
-  arrayMove,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable'
+import { DndContext, closestCenter } from '@dnd-kit/core'
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { api } from '../api.js'
 import ExercisePicker from '../components/ExercisePicker.jsx'
-import SortableItem from '../components/SortableItem.jsx'
+import SortableItem, { moveByKey, useReorderSensors } from '../components/SortableItem.jsx'
 import { EQUIPMENT_ORDER, equipmentLabel, errorMessage } from '../format.js'
 import { blocksToTemplateExercises, templateToBlocks } from '../templates.js'
 
@@ -50,18 +38,10 @@ export default function TemplateEditor() {
       .catch((e) => setError(errorMessage(e)))
   }, [id])
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  )
+  const sensors = useReorderSensors()
 
-  function handleDragEnd({ active, over }) {
-    if (!over || active.id === over.id) return
-    setBlocks((b) => {
-      const from = b.findIndex((blk) => blk.key === active.id)
-      const to = b.findIndex((blk) => blk.key === over.id)
-      return arrayMove(b, from, to)
-    })
+  function handleDragEnd(event) {
+    setBlocks((b) => moveByKey(b, event))
   }
 
   function addExercise(exercise) {
