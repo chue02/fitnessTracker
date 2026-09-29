@@ -2,8 +2,12 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
 from rest_framework.permissions import SAFE_METHODS
 
-from .models import Exercise, Workout
-from .serializers import ExerciseSerializer, WorkoutSerializer
+from .models import Exercise, Workout, WorkoutTemplate
+from .serializers import (
+    ExerciseSerializer,
+    WorkoutSerializer,
+    WorkoutTemplateSerializer,
+)
 
 
 class ExerciseViewSet(viewsets.ModelViewSet):
@@ -33,6 +37,19 @@ class WorkoutViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return Workout.objects.filter(owner=self.request.user).prefetch_related(
             "entries__exercise"
+        )
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+
+
+class WorkoutTemplateViewSet(viewsets.ModelViewSet):
+    queryset = WorkoutTemplate.objects.all()
+    serializer_class = WorkoutTemplateSerializer
+
+    def get_queryset(self):
+        return WorkoutTemplate.objects.filter(owner=self.request.user).prefetch_related(
+            "exercises__exercise"
         )
 
     def perform_create(self, serializer):

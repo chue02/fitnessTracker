@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Exercise, Workout, WorkoutEntry
+from .models import Exercise, TemplateExercise, Workout, WorkoutEntry, WorkoutTemplate
 
 
 @admin.register(Exercise)
@@ -20,3 +20,14 @@ class WorkoutAdmin(admin.ModelAdmin):
     list_display = ("date", "notes", "created_at", "owner")
     list_filter = ("date",)
     inlines = [WorkoutEntryInline]
+
+
+class TemplateExerciseInline(admin.TabularInline):
+    model = TemplateExercise
+    extra = 0
+
+
+@admin.register(WorkoutTemplate)
+class WorkoutTemplateAdmin(admin.ModelAdmin):
+    list_display = ("name", "created_at", "owner")
+    inlines = [TemplateExerciseInline]

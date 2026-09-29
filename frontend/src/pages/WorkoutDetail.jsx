@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api.js'
 import { describeEntry } from '../format.js'
 import ExerciseTags from '../components/ExerciseTags.jsx'
+import SaveAsTemplate from '../components/SaveAsTemplate.jsx'
+import { workoutToTemplateExercises } from '../templates.js'
 
 // Group a workout's flat entry list by exercise, preserving order.
 function groupByExercise(entries) {
@@ -57,6 +59,7 @@ export default function WorkoutDetail() {
       <div className="row between" style={{ marginBottom: 16 }}>
         <h1 style={{ margin: 0 }}>{workout.date}</h1>
         <div className="row">
+          <SaveAsTemplate exercises={workoutToTemplateExercises(workout)} />
           <button className="btn secondary small" onClick={() => navigate(`/workouts/${id}/edit`)}>
             Edit
           </button>

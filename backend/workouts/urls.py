@@ -6,6 +6,7 @@ from . import auth, views
 router = DefaultRouter()
 router.register(r"exercises", views.ExerciseViewSet)
 router.register(r"workouts", views.WorkoutViewSet)
+router.register(r"templates", views.WorkoutTemplateViewSet)
 
 urlpatterns = [
     path("auth/register/", auth.RegisterView.as_view(), name="auth-register"),
