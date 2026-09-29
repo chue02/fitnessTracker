@@ -5,6 +5,7 @@ import NewWorkout from './pages/NewWorkout.jsx'
 import WorkoutDetail from './pages/WorkoutDetail.jsx'
 import Exercises from './pages/Exercises.jsx'
 import Templates from './pages/Templates.jsx'
+import TemplateEditor from './pages/TemplateEditor.jsx'
 import Login from './pages/Login.jsx'
 import Register from './pages/Register.jsx'
 import { useAuth } from './auth.jsx'
@@ -76,6 +77,8 @@ export default function App() {
           <Route path="/workouts/:id" element={<ProtectedRoute><WorkoutDetail /></ProtectedRoute>} />
           <Route path="/exercises" element={<ProtectedRoute><Exercises /></ProtectedRoute>} />
           <Route path="/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
+          <Route path="/templates/new" element={<ProtectedRoute><TemplateEditor /></ProtectedRoute>} />
+          <Route path="/templates/:id/edit" element={<ProtectedRoute><TemplateEditor /></ProtectedRoute>} />
         </Routes>
       </div>
     </>

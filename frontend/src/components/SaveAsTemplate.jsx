@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api.js'
+import { errorMessage } from '../format.js'
 
 // "Save as template" button that expands into an inline name field.
 // `exercises` is the template exercise list to save (see templates.js).
@@ -20,7 +21,7 @@ export default function SaveAsTemplate({ exercises, defaultName = '', disabled }
       setSaved(true)
       setOpen(false)
     } catch (err) {
-      setError(typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail) || err.message)
+      setError(errorMessage(err))
     } finally {
       setSaving(false)
     }

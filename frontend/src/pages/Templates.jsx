@@ -28,11 +28,16 @@ export default function Templates() {
 
   return (
     <div>
-      <h1>Templates</h1>
+      <div className="row between" style={{ marginBottom: 20 }}>
+        <h1 style={{ margin: 0 }}>Templates</h1>
+        <Link to="/templates/new" className="btn small">
+          + New template
+        </Link>
+      </div>
       {templates.length === 0 && (
         <div className="empty">
-          No templates yet. Open a past workout and choose <b>Save as template</b>, or save one
-          while logging a new workout.
+          No templates yet. Create one with <b>+ New template</b>, or open a past workout and
+          choose <b>Save as template</b>.
         </div>
       )}
       {templates.map((t) => (
@@ -42,6 +47,9 @@ export default function Templates() {
             <span className="row">
               <Link to={`/workouts/new?template=${t.id}`} className="btn small">
                 Start workout
+              </Link>
+              <Link to={`/templates/${t.id}/edit`} className="btn secondary small">
+                Edit
               </Link>
               <button className="btn danger small" onClick={() => remove(t)}>
                 Delete
