@@ -23,6 +23,9 @@ can mix both. Browse past workouts in the history view.
   fields (`reps`, `weight`, `weight_unit`, `is_warmup`) and cardio fields
   (`distance`, `distance_unit`, `duration_seconds`, `avg_heart_rate`) share one
   table; only the fields relevant to the exercise's category are filled in.
+- **WorkoutTemplate / TemplateExercise** — a named, ordered list of exercises
+  (plus an optional resistance per exercise) for starting a new workout. No
+  sets, reps or weight are stored; those are entered fresh each time.
 
 ## Getting started
 

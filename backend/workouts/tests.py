@@ -3,7 +3,7 @@ from django.core.management import call_command
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from .models import Exercise, Workout, WorkoutEntry
+from .models import Exercise, Workout, WorkoutEntry, WorkoutTemplate
 
 
 class ExerciseModelTests(APITestCase):
@@ -173,3 +173,61 @@ class OwnershipTests(AuthedTestCase):
         self.client.force_authenticate(self.bob)
         resp = self.client.post("/api/exercises/", {"name": "Alice Lift"}, format="json")
         self.assertEqual(resp.status_code, 201)
+
+
+class WorkoutTemplateTests(AuthedTestCase):
+    def setUp(self):
+        super().setUp()
+        self.bench = Exercise.objects.create(name="Bench", muscle_group="chest", is_custom=False)
+        self.row = Exercise.objects.create(name="Row", muscle_group="back", is_custom=False)
+
+    def test_create_keeps_exercise_order_only(self):
+        resp = self.client.post(
+            "/api/templates/",
+            {
+                "name": "Push A",
+                "exercises": [
+                    {"exercise": self.row.id, "order": 0},
+                    {"exercise": self.bench.id, "order": 1, "equipment": "dumbbell"},
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.data)
+        self.assertEqual([e["exercise_name"] for e in resp.data["exercises"]], ["Row", "Bench"])
+        self.assertEqual(resp.data["exercises"][1]["equipment"], "dumbbell")
+        # A skeleton: no set/rep/weight data exists on the template.
+        self.assertNotIn("reps", resp.data["exercises"][0])
+        self.assertEqual(WorkoutTemplate.objects.get().owner, self.user)
+
+    def test_update_replaces_exercises(self):
+        t = self.client.post(
+            "/api/templates/",
+            {"name": "T", "exercises": [{"exercise": self.bench.id}]},
+            format="json",
+        ).data
+        resp = self.client.patch(
+            f"/api/templates/{t['id']}/",
+            {"exercises": [{"exercise": self.row.id, "order": 0}]},
+            format="json",
+        )
+        self.assertEqual([e["exercise"] for e in resp.data["exercises"]], [self.row.id])
+
+    def test_empty_template_rejected(self):
+        resp = self.client.post(
+            "/api/templates/", {"name": "T", "exercises": []}, format="json"
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_templates_are_private(self):
+        bob = User.objects.create_user("bob", password="pw")
+        bobs_ex = Exercise.objects.create(name="Bob Lift", owner=bob)
+        bobs = WorkoutTemplate.objects.create(name="Bob's", owner=bob)
+        self.assertEqual(self.client.get("/api/templates/").data, [])
+        self.assertEqual(self.client.get(f"/api/templates/{bobs.id}/").status_code, 404)
+        resp = self.client.post(
+            "/api/templates/",
+            {"name": "T", "exercises": [{"exercise": bobs_ex.id}]},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 400)

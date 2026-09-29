@@ -1,6 +1,12 @@
 from rest_framework import serializers
 
-from .models import Exercise, Workout, WorkoutEntry
+from .models import (
+    Exercise,
+    TemplateExercise,
+    Workout,
+    WorkoutEntry,
+    WorkoutTemplate,
+)
 
 
 class ExerciseSerializer(serializers.ModelSerializer):
@@ -126,4 +132,74 @@ class WorkoutSerializer(serializers.ModelSerializer):
     def _sync_entries(workout, entries_data):
         WorkoutEntry.objects.bulk_create(
             [WorkoutEntry(workout=workout, **entry) for entry in entries_data]
+        )
+
+
+class TemplateExerciseSerializer(serializers.ModelSerializer):
+    exercise_name = serializers.CharField(source="exercise.name", read_only=True)
+    exercise_category = serializers.CharField(
+        source="exercise.category", read_only=True
+    )
+    exercise_split = serializers.CharField(source="exercise.split", read_only=True)
+    exercise_muscle_group = serializers.CharField(
+        source="exercise.muscle_group", read_only=True
+    )
+    exercise_secondary_muscles = serializers.CharField(
+        source="exercise.secondary_muscles", read_only=True
+    )
+
+    class Meta:
+        model = TemplateExercise
+        fields = [
+            "id",
+            "exercise",
+            "exercise_name",
+            "exercise_category",
+            "exercise_split",
+            "exercise_muscle_group",
+            "exercise_secondary_muscles",
+            "order",
+            "equipment",
+        ]
+
+    def validate_exercise(self, exercise):
+        user = self.context["request"].user
+        if not Exercise.objects.visible_to(user).filter(pk=exercise.pk).exists():
+            raise serializers.ValidationError("Unknown exercise.")
+        return exercise
+
+
+class WorkoutTemplateSerializer(serializers.ModelSerializer):
+    exercises = TemplateExerciseSerializer(many=True)
+
+    class Meta:
+        model = WorkoutTemplate
+        fields = ["id", "name", "created_at", "exercises"]
+        read_only_fields = ["created_at"]
+
+    def validate_exercises(self, value):
+        if not value:
+            raise serializers.ValidationError("A template needs at least one exercise.")
+        return value
+
+    def create(self, validated_data):
+        exercises_data = validated_data.pop("exercises", [])
+        template = WorkoutTemplate.objects.create(**validated_data)
+        self._sync_exercises(template, exercises_data)
+        return template
+
+    def update(self, instance, validated_data):
+        exercises_data = validated_data.pop("exercises", None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        if exercises_data is not None:
+            instance.exercises.all().delete()
+            self._sync_exercises(instance, exercises_data)
+        return instance
+
+    @staticmethod
+    def _sync_exercises(template, exercises_data):
+        TemplateExercise.objects.bulk_create(
+            [TemplateExercise(template=template, **ex) for ex in exercises_data]
         )

@@ -172,3 +172,44 @@ class WorkoutEntry(models.Model):
 
     def __str__(self):
         return f"{self.exercise.name} ({self.workout.date})"
+
+
+class WorkoutTemplate(models.Model):
+    """A reusable workout skeleton: an ordered list of exercises and nothing
+    else. Sets, reps and weight are deliberately not stored — they're entered
+    fresh each time a workout is started from the template."""
+
+    name = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="templates",
+    )
+
+    class Meta:
+        ordering = ["name", "id"]
+
+    def __str__(self):
+        return self.name
+
+
+class TemplateExercise(models.Model):
+    """One exercise slot in a template."""
+
+    template = models.ForeignKey(
+        WorkoutTemplate, on_delete=models.CASCADE, related_name="exercises"
+    )
+    exercise = models.ForeignKey(Exercise, on_delete=models.PROTECT, related_name="+")
+    order = models.PositiveIntegerField(default=0)
+    # Resistance to pre-select on the first set (e.g. dumbbell vs barbell
+    # bench) — which variant of the lift, not how much of it. Optional.
+    equipment = models.CharField(
+        max_length=16, choices=WorkoutEntry.Equipment.choices, blank=True
+    )
+
+    class Meta:
+        ordering = ["order", "id"]
+
+    def __str__(self):
+        return f"{self.exercise.name} ({self.template.name})"
