@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
@@ -90,6 +92,17 @@ class Exercise(models.Model):
         return self.name
 
 
+LB_PER_KG = Decimal("2.20462")
+
+
+def bodyweight_in(weight_kg, unit):
+    """A kg bodyweight in `unit`. lb is rounded to 0.1 so a weight entered in
+    lb survives its trip through kg (130 lb -> 58.97 kg -> 130.0 lb)."""
+    if unit == "lb":
+        return (weight_kg * LB_PER_KG).quantize(Decimal("0.1"))
+    return weight_kg
+
+
 class Workout(models.Model):
     """A dated training session. Can mix strength and cardio entries."""
 
@@ -103,12 +116,26 @@ class Workout(models.Model):
         on_delete=models.CASCADE,
         related_name="workouts",
     )
+    # The owner's bodyweight for this workout, copied from their history
+    # (BodyweightLog.as_of the workout's date) when the workout is saved. A
+    # snapshot, not a reference: editing or deleting history afterwards never
+    # changes a logged workout. Null if no weight was on record.
+    bodyweight_kg = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True
+    )
 
     class Meta:
         ordering = ["-date", "-created_at"]
 
     def __str__(self):
         return f"Workout on {self.date}"
+
+    def retotal_calisthenics(self):
+        """Recompute stored calisthenics totals from the current snapshot."""
+        entries = list(self.entries.filter(equipment=WorkoutEntry.Equipment.CALISTHENICS))
+        for entry in entries:
+            entry.apply_bodyweight(self.bodyweight_kg)
+        WorkoutEntry.objects.bulk_update(entries, ["weight"])
 
 
 class WorkoutEntry(models.Model):
@@ -145,7 +172,14 @@ class WorkoutEntry(models.Model):
 
     # Strength fields
     reps = models.PositiveIntegerField(null=True, blank=True)
+    # The load moved. For calisthenics this is the TOTAL — the workout's
+    # bodyweight plus `added_weight` — computed when saved (see apply_bodyweight).
     weight = models.DecimalField(
+        max_digits=7, decimal_places=2, null=True, blank=True
+    )
+    # Calisthenics only: what the user entered, e.g. +25 for a weighted
+    # pull-up. Kept so the set can be edited as "+25" again.
+    added_weight = models.DecimalField(
         max_digits=7, decimal_places=2, null=True, blank=True
     )
     weight_unit = models.CharField(
@@ -172,6 +206,106 @@ class WorkoutEntry(models.Model):
 
     def __str__(self):
         return f"{self.exercise.name} ({self.workout.date})"
+
+    def apply_bodyweight(self, bodyweight_kg):
+        """Set a calisthenics set's total `weight` from a bodyweight (kg) and
+        its `added_weight`. Unknown bodyweight leaves the total unknown."""
+        if self.equipment != self.Equipment.CALISTHENICS:
+            self.added_weight = None
+            return
+        if bodyweight_kg is None:
+            self.weight = None
+        else:
+            self.weight = bodyweight_in(bodyweight_kg, self.weight_unit) + (
+                self.added_weight or 0
+            )
+
+
+class BodyweightLogQuerySet(models.QuerySet):
+    def as_of(self, day):
+        """The weight in effect on `day`: the latest entry on or before it,
+        falling back to the earliest entry for days before any were logged.
+        None if the user has never logged a weight."""
+        on_or_before = self.filter(date__lte=day).order_by("-date").first()
+        return on_or_before or self.order_by("date").first()
+
+
+class BodyweightLog(models.Model):
+    """A user's bodyweight as of a date. Logging a new weight adds a row for
+    that day and never touches earlier ones. Workouts copy the weight in
+    effect on their date when saved (Workout.bodyweight_kg), so changing this
+    history later doesn't alter workouts already logged."""
+
+    objects = BodyweightLogQuerySet.as_manager()
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="bodyweights",
+    )
+    date = models.DateField(default=timezone.localdate)
+    weight_kg = models.DecimalField(max_digits=5, decimal_places=2)
+
+    class Meta:
+        ordering = ["-date"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["owner", "date"], name="unique_bodyweight_per_day"
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.owner} {self.weight_kg} kg on {self.date}"
+
+
+def fill_missing_bodyweights(owner):
+    """Give the owner's workouts that have NO bodyweight snapshot one from
+    their current history, and total their calisthenics sets. Run whenever a
+    weight is logged. Workouts that already have a snapshot are left alone, so
+    logging, correcting or deleting history never rewrites them."""
+    history = BodyweightLog.objects.filter(owner=owner)
+    for workout in Workout.objects.filter(owner=owner, bodyweight_kg__isnull=True):
+        entry = history.as_of(workout.date)
+        if entry is None:
+            return  # no history at all, so nothing can be filled
+        workout.bodyweight_kg = entry.weight_kg
+        workout.save(update_fields=["bodyweight_kg"])
+        workout.retotal_calisthenics()
+
+
+class UserProfile(models.Model):
+    """Per-user preferences and body vitals. Every field is optional so a new
+    account works before the profile is filled in.
+
+    Height is stored in cm regardless of `weight_unit`; the frontend converts
+    for display. Weight isn't stored here at all — it changes over time, so it
+    lives in BodyweightLog and the profile reports the latest entry."""
+
+    class Sex(models.TextChoices):
+        MALE = "male", "Male"
+        FEMALE = "female", "Female"
+        OTHER = "other", "Other"
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile"
+    )
+    # Display/entry unit: lb pairs with ft/in for height, kg with cm. Also the
+    # default unit for newly logged sets.
+    weight_unit = models.CharField(
+        max_length=2,
+        choices=WorkoutEntry.WeightUnit.choices,
+        default=WorkoutEntry.WeightUnit.LB,
+    )
+    height_cm = models.DecimalField(
+        max_digits=5, decimal_places=1, null=True, blank=True
+    )
+    sex = models.CharField(max_length=8, choices=Sex.choices, blank=True)
+    date_of_birth = models.DateField(null=True, blank=True)
+    # Average resting heart rate, in beats per minute.
+    avg_bpm = models.PositiveSmallIntegerField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Profile of {self.user}"
 
 
 class WorkoutTemplate(models.Model):

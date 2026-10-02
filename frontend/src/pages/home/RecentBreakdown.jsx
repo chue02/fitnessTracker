@@ -14,7 +14,7 @@ const STAT_COLUMNS = [
     key: 'maxLb',
     label: 'Max lb',
     title: 'Heaviest set',
-    body: 'The single heaviest load lifted. Sets logged in kg are converted to pounds.',
+    body: 'The single heaviest load lifted. Sets logged in kg are converted to pounds; calisthenics sets count the bodyweight recorded with that workout plus any added weight.',
   },
   {
     key: 'wtdAvgLb',
@@ -52,7 +52,7 @@ function ColHeader({ label, title, body, numeric = false }) {
 }
 
 // At most one decimal, with a trailing ".0" trimmed — 32.5 stays 32.5, 40.0
-// becomes 40. Null means there was nothing to measure (e.g. bodyweight only).
+// becomes 40. Null means there was nothing to measure (no set with a known load).
 function num(n) {
   if (n == null) return '—'
   const rounded = Math.round(n * 10) / 10

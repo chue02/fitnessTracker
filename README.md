@@ -26,6 +26,22 @@ can mix both. Browse past workouts in the history view.
 - **WorkoutTemplate / TemplateExercise** — a named, ordered list of exercises
   (plus an optional resistance per exercise) for starting a new workout. No
   sets, reps or weight are stored; those are entered fresh each time.
+- **UserProfile** — one per user (created on first access): preferred unit
+  (`weight_unit`: `lb` → ft/in & mi, `kg` → cm & km), plus optional vitals:
+  `height_cm`, `sex`, `date_of_birth`, `avg_bpm` (resting). Height is always
+  stored metric; the frontend converts for display. The profile's `weight_kg`
+  is read-only: the latest **BodyweightLog** entry.
+- **BodyweightLog** — dated bodyweight history, one entry per user per day.
+  When a workout is saved, the server copies the weight in effect on its date
+  (latest entry on or before it, else the earliest entry) into the workout's
+  read-only `bodyweight_kg`. It's a snapshot: editing or deleting history never
+  changes a logged workout. It's only re-taken if the workout's date changes.
+  Workouts saved with no weight on record are filled in (calisthenics totals
+  included) as soon as a weight is logged or corrected.
+- **Calisthenics sets** store their total load in `weight` (snapshot
+  bodyweight + `added_weight`), computed server-side — e.g. 130 lb bodyweight
+  with `added_weight: 25` is stored as `weight: 155`. Clients send only
+  `added_weight`; stats read `weight` like any other set.
 
 ## Getting started
 
@@ -67,6 +83,9 @@ Base path `/api/`:
 | GET/POST | `/exercises/` | List / create exercises. Filters: `?category=`, `?muscle_group=`, `?is_custom=` |
 | GET/POST | `/workouts/` | List (newest first) / create a workout with nested `entries` |
 | GET/PATCH/DELETE | `/workouts/{id}/` | Retrieve / update / delete a workout |
+| GET/POST | `/bodyweight/` | Bodyweight history (newest first) / log a `{date, weight_kg}` — replaces that date's entry if one exists |
+| GET/PATCH/DELETE | `/bodyweight/{id}/` | Retrieve / correct / delete one entry |
+| GET/PATCH | `/profile/` | The signed-in user's unit preference and vitals (also nested on `/auth/me/`) |
 
 A workout is created in a single POST with its entries nested, e.g.:
 

@@ -10,14 +10,29 @@ const EQUIPMENT = [
 
 // One strength set: resistance, reps, weight, unit, warmup toggle.
 export default function SetRow({ index, entry, onChange, onRemove }) {
-  const set = (field, value) => onChange({ ...entry, [field]: value })
+  const bodyweight = entry.equipment === 'calisthenics'
+  // A calisthenics set's `weight` is a total the server computes on save
+  // (bodyweight + added). Drop it on any edit so nothing stale is shown.
+  const set = (field, value) =>
+    onChange({ ...entry, [field]: value, ...(bodyweight ? { weight: null } : {}) })
+
+  // The weight box holds added weight for calisthenics and the full load
+  // otherwise; whatever is typed in it stays put when the resistance changes.
+  function setEquipment(equipment) {
+    const box = bodyweight ? entry.added_weight : entry.weight
+    onChange(
+      equipment === 'calisthenics'
+        ? { ...entry, equipment, added_weight: box ?? null, weight: null }
+        : { ...entry, equipment, weight: box ?? null, added_weight: null },
+    )
+  }
 
   return (
     <div className="entry-line">
       <span className="idx">{index + 1}</span>
       <select
         value={entry.equipment ?? ''}
-        onChange={(e) => set('equipment', e.target.value)}
+        onChange={(e) => setEquipment(e.target.value)}
         title="Resistance"
       >
         <option value="">resistance…</option>
@@ -38,9 +53,12 @@ export default function SetRow({ index, entry, onChange, onRemove }) {
         type="number"
         min="0"
         step="0.5"
-        placeholder="weight"
-        value={entry.weight ?? ''}
-        onChange={(e) => set('weight', e.target.value === '' ? null : e.target.value)}
+        placeholder={bodyweight ? '+ weight' : 'weight'}
+        title={bodyweight ? 'Added weight — your bodyweight is added to it when saved' : undefined}
+        value={(bodyweight ? entry.added_weight : entry.weight) ?? ''}
+        onChange={(e) =>
+          set(bodyweight ? 'added_weight' : 'weight', e.target.value === '' ? null : e.target.value)
+        }
       />
       <select value={entry.weight_unit} onChange={(e) => set('weight_unit', e.target.value)}>
         <option value="lb">lb</option>

@@ -18,7 +18,8 @@ export default function Register() {
     setSubmitting(true)
     try {
       await register(username.trim(), password, email.trim())
-      navigate('/')
+      // Prompt new users for their vitals; the page lets them skip.
+      navigate('/profile', { state: { welcome: true } })
     } catch (err) {
       setError(errorMessage(err))
     } finally {

@@ -15,13 +15,23 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .models import UserProfile
+from .serializers import UserProfileSerializer
+
 User = get_user_model()
 
 
 class UserSerializer(serializers.ModelSerializer):
+    # Nested so the SPA learns the user's unit preference along with who they are.
+    profile = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ["id", "username", "email"]
+        fields = ["id", "username", "email", "profile"]
+
+    def get_profile(self, user):
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        return UserProfileSerializer(profile).data
 
 
 class RegisterSerializer(serializers.ModelSerializer):

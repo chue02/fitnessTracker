@@ -1,8 +1,11 @@
+from django.utils import timezone
 from rest_framework import serializers
 
 from .models import (
+    BodyweightLog,
     Exercise,
     TemplateExercise,
+    UserProfile,
     Workout,
     WorkoutEntry,
     WorkoutTemplate,
@@ -67,6 +70,7 @@ class WorkoutEntrySerializer(serializers.ModelSerializer):
             "notes",
             "reps",
             "weight",
+            "added_weight",
             "weight_unit",
             "equipment",
             "is_warmup",
@@ -90,7 +94,7 @@ class WorkoutEntrySerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"exercise": "Unknown exercise."})
 
         if exercise.category == Exercise.Category.CARDIO:
-            if attrs.get("reps") is not None or attrs.get("weight") is not None:
+            if any(attrs.get(f) is not None for f in ("reps", "weight", "added_weight")):
                 raise serializers.ValidationError(
                     "Cardio entries cannot have reps or weight."
                 )
@@ -108,31 +112,59 @@ class WorkoutSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Workout
-        fields = ["id", "date", "notes", "created_at", "entries"]
-        read_only_fields = ["created_at"]
+        fields = ["id", "date", "notes", "created_at", "bodyweight_kg", "entries"]
+        # bodyweight_kg is a server-side snapshot of the owner's history.
+        read_only_fields = ["created_at", "bodyweight_kg"]
+
+    @staticmethod
+    def _bodyweight_on(owner, day):
+        entry = BodyweightLog.objects.filter(owner=owner).as_of(day)
+        return entry.weight_kg if entry else None
 
     def create(self, validated_data):
         entries_data = validated_data.pop("entries", [])
+        validated_data["bodyweight_kg"] = self._bodyweight_on(
+            validated_data.get("owner"), validated_data.get("date", timezone.localdate())
+        )
         workout = Workout.objects.create(**validated_data)
         self._sync_entries(workout, entries_data)
         return workout
 
     def update(self, instance, validated_data):
         entries_data = validated_data.pop("entries", None)
+        date_changed = "date" in validated_data and validated_data["date"] != instance.date
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
+
+        # Keep the snapshot unless the workout moved to another day (a
+        # different day can mean a different weight) or none was on record
+        # when it was first saved. Never cleared: if history no longer covers
+        # the date, the existing snapshot stands.
+        bodyweight_changed = False
+        if date_changed or instance.bodyweight_kg is None:
+            bodyweight = self._bodyweight_on(instance.owner, instance.date)
+            if bodyweight is not None and bodyweight != instance.bodyweight_kg:
+                instance.bodyweight_kg = bodyweight
+                bodyweight_changed = True
         instance.save()
+
         if entries_data is not None:
             # Simplest correct strategy: replace the child set on every write.
             instance.entries.all().delete()
             self._sync_entries(instance, entries_data)
+        elif bodyweight_changed:
+            # Entries weren't resent, so re-total the stored calisthenics sets.
+            instance.retotal_calisthenics()
         return instance
 
     @staticmethod
     def _sync_entries(workout, entries_data):
-        WorkoutEntry.objects.bulk_create(
-            [WorkoutEntry(workout=workout, **entry) for entry in entries_data]
-        )
+        entries = [WorkoutEntry(workout=workout, **entry) for entry in entries_data]
+        # Calisthenics totals are always computed here from the snapshot, never
+        # taken from the client.
+        for entry in entries:
+            entry.apply_bodyweight(workout.bodyweight_kg)
+        WorkoutEntry.objects.bulk_create(entries)
 
 
 class TemplateExerciseSerializer(serializers.ModelSerializer):
@@ -203,3 +235,49 @@ class WorkoutTemplateSerializer(serializers.ModelSerializer):
         TemplateExercise.objects.bulk_create(
             [TemplateExercise(template=template, **ex) for ex in exercises_data]
         )
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    # Sanity bounds that catch unit mix-ups (e.g. lb typed into a kg field)
+    # without rejecting any plausible adult or child.
+    height_cm = serializers.DecimalField(
+        max_digits=5, decimal_places=1, min_value=50, max_value=275,
+        required=False, allow_null=True,
+    )
+    # Latest logged bodyweight. Read-only: weight changes go through
+    # /bodyweight/ so they land as dated history instead of overwriting it.
+    weight_kg = serializers.SerializerMethodField()
+    avg_bpm = serializers.IntegerField(
+        min_value=25, max_value=220, required=False, allow_null=True
+    )
+
+    class Meta:
+        model = UserProfile
+        fields = [
+            "weight_unit",
+            "height_cm",
+            "weight_kg",
+            "sex",
+            "date_of_birth",
+            "avg_bpm",
+        ]
+
+    def get_weight_kg(self, profile):
+        latest = BodyweightLog.objects.filter(owner=profile.user).first()
+        return str(latest.weight_kg) if latest else None
+
+    def validate_date_of_birth(self, value):
+        if value is not None and value > timezone.localdate():
+            raise serializers.ValidationError("Date of birth can't be in the future.")
+        return value
+
+
+class BodyweightLogSerializer(serializers.ModelSerializer):
+    # Same sanity bounds as the rest of the profile.
+    weight_kg = serializers.DecimalField(
+        max_digits=5, decimal_places=2, min_value=20, max_value=450
+    )
+
+    class Meta:
+        model = BodyweightLog
+        fields = ["id", "date", "weight_kg"]

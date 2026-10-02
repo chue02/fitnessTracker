@@ -8,6 +8,7 @@ import Templates from './pages/Templates.jsx'
 import TemplateEditor from './pages/TemplateEditor.jsx'
 import Login from './pages/Login.jsx'
 import Register from './pages/Register.jsx'
+import Profile from './pages/Profile.jsx'
 import { useAuth } from './auth.jsx'
 
 function Nav() {
@@ -33,7 +34,14 @@ function Nav() {
           <NavLink to="/workouts/new" className="btn small">
             + New workout
           </NavLink>
-          <span className="muted" style={{ marginLeft: 12 }}>{user.username}</span>
+          <NavLink
+            to="/profile"
+            className={({ isActive }) => 'link' + (isActive ? ' active' : '')}
+            style={{ marginLeft: 12 }}
+            title="Profile"
+          >
+            {user.username}
+          </NavLink>
           <button className="btn small ghost" onClick={logout} style={{ marginLeft: 8 }}>
             Log out
           </button>
@@ -79,6 +87,7 @@ export default function App() {
           <Route path="/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
           <Route path="/templates/new" element={<ProtectedRoute><TemplateEditor /></ProtectedRoute>} />
           <Route path="/templates/:id/edit" element={<ProtectedRoute><TemplateEditor /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
         </Routes>
       </div>
     </>

@@ -1,6 +1,25 @@
 from django.contrib import admin
 
-from .models import Exercise, TemplateExercise, Workout, WorkoutEntry, WorkoutTemplate
+from .models import (
+    BodyweightLog,
+    Exercise,
+    TemplateExercise,
+    UserProfile,
+    Workout,
+    WorkoutEntry,
+    WorkoutTemplate,
+)
+
+
+@admin.register(BodyweightLog)
+class BodyweightLogAdmin(admin.ModelAdmin):
+    list_display = ("owner", "date", "weight_kg")
+    list_filter = ("owner",)
+
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = ("user", "weight_unit", "height_cm", "sex", "avg_bpm")
 
 
 @admin.register(Exercise)

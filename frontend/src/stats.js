@@ -1,9 +1,12 @@
 // Aggregation helpers for the home screen. Pure functions over the workout list
 // returned by GET /api/workouts/ (owner-scoped, newest first, entries nested).
 //
-// Two things about the API shape drive most of the care below:
+// Three things about the API shape drive most of the care below:
 //   - `weight`/`distance` are DRF DecimalFields, so they arrive as STRINGS.
 //   - `weight_unit` is per set, so a history can mix lb and kg.
+//   - A calisthenics set's `weight` is already the TOTAL load (the bodyweight
+//     stored with its workout plus any added weight), computed by the server
+//     when the workout was saved. Stats never look up bodyweight themselves.
 
 import {
   EQUIPMENT_ORDER, isoDate, MUSCLE_ORDER, parseIso, SPLIT_ORDER, workoutSummary,
@@ -24,8 +27,15 @@ export function toLb(weight, unit) {
   return unit === 'kg' ? n * LB_PER_KG : n
 }
 
+// Calisthenics sets are bodyweight work; their stored `weight` includes the
+// body (see the note at the top). Used to label such loads.
+export function isBodyweightSet(entry) {
+  return entry.equipment === 'calisthenics'
+}
+
 // A set that counts toward volume and PRs: strength, not a warmup, and actually
-// loaded (bodyweight sets have weight === null).
+// loaded (weight is null when nothing was logged, or for a calisthenics set
+// saved before any bodyweight was on record).
 export function isWorkingSet(entry) {
   return (
     entry.exercise_category === 'strength' &&
@@ -209,6 +219,7 @@ export function recentRecords(workouts, limit = 5) {
           weight: current.weight,
           weightUnit: current.unit,
           reps: current.reps,
+          bodyweight: isBodyweightSet(e),
           // Reported in the new set's unit so the delta reads consistently.
           gain: Math.round((current.lb - prev.lb) * (current.unit === 'kg' ? 1 / LB_PER_KG : 1) * 10) / 10,
           previousWeight: prev.weight,
@@ -253,6 +264,7 @@ export function personalRecord(workouts, exerciseId, equipment = null) {
           weight: Number(e.weight),
           weightUnit: e.weight_unit,
           reps: e.reps,
+          bodyweight: isBodyweightSet(e),
           date: w.date,
           workoutId: w.id,
         }
@@ -384,9 +396,9 @@ export function splitBalance(workouts, today = new Date(), windowDays = 30) {
 //   MAX Lbs, Lbs Wtd Avg, SUM of Sets, SUM of Reps, Avg Reps/Set
 // where the weighted average is volume over reps, i.e. Σ(weight × reps) / Σ(reps).
 
-// Roll a list of sets into that stat line. Weight-less (bodyweight) sets still
-// count toward sets/reps but can't contribute to a load average, so a group
-// with no loaded sets reports null rather than a misleading 0.
+// Roll a list of sets into that stat line. Weight-less sets still count toward
+// sets/reps but can't contribute to a load average, so a group with no loaded
+// sets reports null rather than a misleading 0.
 function statsFor(entries) {
   let sets = 0
   let reps = 0

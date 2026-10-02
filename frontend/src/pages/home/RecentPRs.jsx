@@ -38,6 +38,11 @@ export default function RecentPRs({ workouts, limit = 5 }) {
             <div style={{ textAlign: 'right' }}>
               <div className="pr-value">
                 {r.weight} {r.weightUnit}
+                {r.bodyweight && (
+                  <span className="muted small" title="Your bodyweight on that day, plus any added weight">
+                    {' '}incl. BW
+                  </span>
+                )}
               </div>
               <div className="pr-gain small">
                 +{r.gain} {r.weightUnit}
