@@ -1,13 +1,25 @@
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import viewsets
+from rest_framework import generics, viewsets
 from rest_framework.permissions import SAFE_METHODS
 
-from .models import Exercise, Workout, WorkoutTemplate
+from .models import Exercise, UserProfile, Workout, WorkoutTemplate
 from .serializers import (
     ExerciseSerializer,
+    UserProfileSerializer,
     WorkoutSerializer,
     WorkoutTemplateSerializer,
 )
+
+
+class ProfileView(generics.RetrieveUpdateAPIView):
+    """GET/PATCH the signed-in user's profile. There's exactly one per user,
+    so there's no id in the URL; it's created on first access."""
+
+    serializer_class = UserProfileSerializer
+
+    def get_object(self):
+        profile, _ = UserProfile.objects.get_or_create(user=self.request.user)
+        return profile
 
 
 class ExerciseViewSet(viewsets.ModelViewSet):

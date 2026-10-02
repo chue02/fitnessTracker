@@ -231,3 +231,67 @@ class WorkoutTemplateTests(AuthedTestCase):
             format="json",
         )
         self.assertEqual(resp.status_code, 400)
+
+
+class UserProfileTests(AuthedTestCase):
+    def test_profile_created_on_first_read_with_defaults(self):
+        resp = self.client.get("/api/profile/")
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.data["weight_unit"], "lb")
+        self.assertIsNone(resp.data["height_cm"])
+        self.assertIsNone(resp.data["avg_bpm"])
+
+    def test_patch_vitals_round_trip(self):
+        resp = self.client.patch(
+            "/api/profile/",
+            {
+                "weight_unit": "kg",
+                "height_cm": "180.3",
+                "weight_kg": "81.65",
+                "sex": "female",
+                "date_of_birth": "1995-04-12",
+                "avg_bpm": 62,
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
+        profile = self.client.get("/api/profile/").data
+        self.assertEqual(profile["weight_unit"], "kg")
+        self.assertEqual(profile["height_cm"], "180.3")
+        self.assertEqual(profile["weight_kg"], "81.65")
+        self.assertEqual(profile["sex"], "female")
+        self.assertEqual(profile["avg_bpm"], 62)
+
+    def test_fields_can_be_cleared(self):
+        self.client.patch("/api/profile/", {"avg_bpm": 60, "sex": "male"}, format="json")
+        resp = self.client.patch("/api/profile/", {"avg_bpm": None, "sex": ""}, format="json")
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
+        self.assertIsNone(resp.data["avg_bpm"])
+        self.assertEqual(resp.data["sex"], "")
+
+    def test_implausible_values_rejected(self):
+        for field, value in [
+            ("height_cm", "5"),
+            ("weight_kg", "1000"),
+            ("avg_bpm", 400),
+            ("weight_unit", "stone"),
+            ("date_of_birth", "2999-01-01"),
+        ]:
+            resp = self.client.patch("/api/profile/", {field: value}, format="json")
+            self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST, field)
+
+    def test_me_includes_profile(self):
+        self.client.patch("/api/profile/", {"weight_unit": "kg"}, format="json")
+        resp = self.client.get("/api/auth/me/")
+        self.assertEqual(resp.data["profile"]["weight_unit"], "kg")
+
+    def test_profile_is_per_user(self):
+        self.client.patch("/api/profile/", {"avg_bpm": 55}, format="json")
+        bob = User.objects.create_user("bob", password="pw")
+        self.client.force_authenticate(bob)
+        self.assertIsNone(self.client.get("/api/profile/").data["avg_bpm"])
+
+    def test_requires_login(self):
+        self.client.force_authenticate(None)
+        resp = self.client.get("/api/profile/")
+        self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)

@@ -174,6 +174,44 @@ class WorkoutEntry(models.Model):
         return f"{self.exercise.name} ({self.workout.date})"
 
 
+class UserProfile(models.Model):
+    """Per-user preferences and body vitals. Every field is optional so a new
+    account works before the profile is filled in.
+
+    Height and weight are stored in canonical metric (cm, kg) regardless of
+    `weight_unit`; the frontend converts for display. That way flipping the
+    unit preference never rewrites or loses the stored values."""
+
+    class Sex(models.TextChoices):
+        MALE = "male", "Male"
+        FEMALE = "female", "Female"
+        OTHER = "other", "Other"
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile"
+    )
+    # Display/entry unit: lb pairs with ft/in for height, kg with cm. Also the
+    # default unit for newly logged sets.
+    weight_unit = models.CharField(
+        max_length=2,
+        choices=WorkoutEntry.WeightUnit.choices,
+        default=WorkoutEntry.WeightUnit.LB,
+    )
+    height_cm = models.DecimalField(
+        max_digits=5, decimal_places=1, null=True, blank=True
+    )
+    weight_kg = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True
+    )
+    sex = models.CharField(max_length=8, choices=Sex.choices, blank=True)
+    date_of_birth = models.DateField(null=True, blank=True)
+    # Average resting heart rate, in beats per minute.
+    avg_bpm = models.PositiveSmallIntegerField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Profile of {self.user}"
+
+
 class WorkoutTemplate(models.Model):
     """A reusable workout skeleton: an ordered list of exercises and nothing
     else. Sets, reps and weight are deliberately not stored — they're entered

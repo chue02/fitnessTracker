@@ -13,4 +13,5 @@ urlpatterns = [
     path("auth/login/", auth.LoginView.as_view(), name="auth-login"),
     path("auth/logout/", auth.LogoutView.as_view(), name="auth-logout"),
     path("auth/me/", auth.MeView.as_view(), name="auth-me"),
+    path("profile/", views.ProfileView.as_view(), name="profile"),
 ] + router.urls

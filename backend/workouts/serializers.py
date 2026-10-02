@@ -1,8 +1,10 @@
+from django.utils import timezone
 from rest_framework import serializers
 
 from .models import (
     Exercise,
     TemplateExercise,
+    UserProfile,
     Workout,
     WorkoutEntry,
     WorkoutTemplate,
@@ -203,3 +205,35 @@ class WorkoutTemplateSerializer(serializers.ModelSerializer):
         TemplateExercise.objects.bulk_create(
             [TemplateExercise(template=template, **ex) for ex in exercises_data]
         )
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    # Sanity bounds that catch unit mix-ups (e.g. lb typed into a kg field)
+    # without rejecting any plausible adult or child.
+    height_cm = serializers.DecimalField(
+        max_digits=5, decimal_places=1, min_value=50, max_value=275,
+        required=False, allow_null=True,
+    )
+    weight_kg = serializers.DecimalField(
+        max_digits=5, decimal_places=2, min_value=20, max_value=450,
+        required=False, allow_null=True,
+    )
+    avg_bpm = serializers.IntegerField(
+        min_value=25, max_value=220, required=False, allow_null=True
+    )
+
+    class Meta:
+        model = UserProfile
+        fields = [
+            "weight_unit",
+            "height_cm",
+            "weight_kg",
+            "sex",
+            "date_of_birth",
+            "avg_bpm",
+        ]
+
+    def validate_date_of_birth(self, value):
+        if value is not None and value > timezone.localdate():
+            raise serializers.ValidationError("Date of birth can't be in the future.")
+        return value

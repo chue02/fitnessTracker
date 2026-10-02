@@ -45,8 +45,14 @@ export function AuthProvider({ children }) {
     setUser(null)
   }
 
+  // Keep the cached user in sync after the profile page saves, so things like
+  // the default weight unit update without a reload.
+  function setProfile(profile) {
+    setUser((u) => (u ? { ...u, profile } : u))
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, setProfile }}>
       {children}
     </AuthContext.Provider>
   )

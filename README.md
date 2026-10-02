@@ -26,6 +26,11 @@ can mix both. Browse past workouts in the history view.
 - **WorkoutTemplate / TemplateExercise** — a named, ordered list of exercises
   (plus an optional resistance per exercise) for starting a new workout. No
   sets, reps or weight are stored; those are entered fresh each time.
+- **UserProfile** — one per user (created on first access): preferred unit
+  (`weight_unit`: `lb` → ft/in & mi, `kg` → cm & km), plus optional vitals:
+  `height_cm`, `weight_kg`, `sex`, `date_of_birth`, `avg_bpm` (resting).
+  Height/weight are always stored metric; the frontend converts for display,
+  so changing the unit preference never alters the stored values.
 
 ## Getting started
 
@@ -67,6 +72,7 @@ Base path `/api/`:
 | GET/POST | `/exercises/` | List / create exercises. Filters: `?category=`, `?muscle_group=`, `?is_custom=` |
 | GET/POST | `/workouts/` | List (newest first) / create a workout with nested `entries` |
 | GET/PATCH/DELETE | `/workouts/{id}/` | Retrieve / update / delete a workout |
+| GET/PATCH | `/profile/` | The signed-in user's unit preference and vitals (also nested on `/auth/me/`) |
 
 A workout is created in a single POST with its entries nested, e.g.:
 

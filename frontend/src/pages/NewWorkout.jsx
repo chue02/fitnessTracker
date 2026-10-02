@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { DndContext, closestCenter } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { api } from '../api.js'
+import { useAuth } from '../auth.jsx'
 import ExercisePicker from '../components/ExercisePicker.jsx'
 import ExerciseTags from '../components/ExerciseTags.jsx'
 import SetRow from '../components/SetRow.jsx'
@@ -12,11 +13,14 @@ import SaveAsTemplate from '../components/SaveAsTemplate.jsx'
 import { describeEntry, isoDate } from '../format.js'
 import { blocksToTemplateExercises, templateToBlocks } from '../templates.js'
 
-function blankStrengthEntry(equipment = '') {
-  return { reps: null, weight: null, weight_unit: 'lb', equipment, is_warmup: false }
+// New entries start in the user's preferred units (profile `weight_unit`);
+// metric users get km for cardio too.
+function blankStrengthEntry(weightUnit, equipment = '') {
+  return { reps: null, weight: null, weight_unit: weightUnit, equipment, is_warmup: false }
 }
-function blankCardioEntry() {
-  return { distance: null, distance_unit: 'mi', duration_seconds: null, avg_heart_rate: null }
+function blankCardioEntry(weightUnit) {
+  const distance_unit = weightUnit === 'kg' ? 'km' : 'mi'
+  return { distance: null, distance_unit, duration_seconds: null, avg_heart_rate: null }
 }
 
 // Rebuild the editable block/entry structure from a saved workout's flat entry
@@ -64,6 +68,8 @@ function workoutToBlocks(workout) {
 
 export default function NewWorkout() {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const weightUnit = user?.profile?.weight_unit || 'lb'
   // Present when editing an existing workout; absent when creating a new one.
   const { id } = useParams()
   // `?template=<id>` pre-fills a new workout from a template.
@@ -128,7 +134,7 @@ export default function NewWorkout() {
 
   function addExercise(exercise) {
     const first =
-      exercise.category === 'cardio' ? blankCardioEntry() : blankStrengthEntry()
+      exercise.category === 'cardio' ? blankCardioEntry(weightUnit) : blankStrengthEntry(weightUnit)
     const key = crypto.randomUUID()
     setBlocks((b) => [...b, { key, exercise, entries: [first] }])
     setActiveKey(key)
@@ -146,8 +152,8 @@ export default function NewWorkout() {
     const entry = last
       ? { ...last }
       : block.exercise.category === 'cardio'
-        ? blankCardioEntry()
-        : blankStrengthEntry(block.defaultEquipment)
+        ? blankCardioEntry(weightUnit)
+        : blankStrengthEntry(weightUnit, block.defaultEquipment)
     updateBlock(block.key, (blk) => ({ ...blk, entries: [...blk.entries, entry] }))
   }
 

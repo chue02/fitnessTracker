@@ -18,6 +18,43 @@ export function parseIso(iso) {
   return new Date(y, m - 1, d)
 }
 
+// --- Body measurements ---
+// The profile stores height in cm and weight in kg; these convert for display
+// in the user's preferred units (lb pairs with ft/in, kg with cm).
+const CM_PER_IN = 2.54
+const LB_PER_KG = 2.20462
+
+export const round = (n, places) => Math.round(n * 10 ** places) / 10 ** places
+
+export function kgToLb(kg) {
+  return round(kg * LB_PER_KG, 1)
+}
+
+export function lbToKg(lb) {
+  return round(lb / LB_PER_KG, 2)
+}
+
+// cm -> { ft, in }, inches to one decimal (carrying 12 in up to the next foot).
+export function cmToFtIn(cm) {
+  const totalIn = round(cm / CM_PER_IN, 1)
+  const ft = Math.floor(totalIn / 12)
+  return { ft, in: round(totalIn - ft * 12, 1) }
+}
+
+export function ftInToCm(ft, inches) {
+  return round((ft * 12 + inches) * CM_PER_IN, 1)
+}
+
+// Whole years between a YYYY-MM-DD birthday and today.
+export function ageFrom(dob, today = new Date()) {
+  const birth = parseIso(dob)
+  const age = today.getFullYear() - birth.getFullYear()
+  const hadBirthday =
+    today.getMonth() > birth.getMonth() ||
+    (today.getMonth() === birth.getMonth() && today.getDate() >= birth.getDate())
+  return hadBirthday ? age : age - 1
+}
+
 // Canonical orderings — also used as deterministic tie-breakers.
 export const SPLIT_ORDER = ['pull', 'push', 'legs', 'core']
 
