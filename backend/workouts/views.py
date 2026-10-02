@@ -3,7 +3,14 @@ from rest_framework import generics, status, viewsets
 from rest_framework.permissions import SAFE_METHODS
 from rest_framework.response import Response
 
-from .models import BodyweightLog, Exercise, UserProfile, Workout, WorkoutTemplate
+from .models import (
+    BodyweightLog,
+    Exercise,
+    UserProfile,
+    Workout,
+    WorkoutTemplate,
+    fill_missing_bodyweights,
+)
 from .serializers import (
     BodyweightLogSerializer,
     ExerciseSerializer,
@@ -15,13 +22,19 @@ from .serializers import (
 
 class BodyweightLogViewSet(viewsets.ModelViewSet):
     """The user's dated bodyweight history, newest first. One entry per day:
-    POSTing a date that already has one replaces its weight."""
+    POSTing a date that already has one replaces its weight. Logging or
+    correcting a weight fills in workouts saved with no bodyweight on record;
+    workouts that already have one keep it."""
 
     queryset = BodyweightLog.objects.all()
     serializer_class = BodyweightLogSerializer
 
     def get_queryset(self):
         return BodyweightLog.objects.filter(owner=self.request.user)
+
+    def perform_update(self, serializer):
+        serializer.save()
+        fill_missing_bodyweights(self.request.user)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -31,6 +44,7 @@ class BodyweightLogViewSet(viewsets.ModelViewSet):
             date=serializer.validated_data["date"],
             defaults={"weight_kg": serializer.validated_data["weight_kg"]},
         )
+        fill_missing_bodyweights(request.user)
         return Response(
             self.get_serializer(entry).data,
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,

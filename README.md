@@ -35,8 +35,9 @@ can mix both. Browse past workouts in the history view.
   When a workout is saved, the server copies the weight in effect on its date
   (latest entry on or before it, else the earliest entry) into the workout's
   read-only `bodyweight_kg`. It's a snapshot: editing or deleting history never
-  changes a logged workout. It's only re-taken if the workout's date changes,
-  or on the next save of a workout that had no weight on record.
+  changes a logged workout. It's only re-taken if the workout's date changes.
+  Workouts saved with no weight on record are filled in (calisthenics totals
+  included) as soon as a weight is logged or corrected.
 - **Calisthenics sets** store their total load in `weight` (snapshot
   bodyweight + `added_weight`), computed server-side — e.g. 130 lb bodyweight
   with `added_weight: 25` is stored as `weight: 155`. Clients send only

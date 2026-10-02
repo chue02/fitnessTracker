@@ -400,16 +400,39 @@ class BodyweightTests(AuthedTestCase):
         self.assertEqual(resp.data["bodyweight_kg"], "86.18")
         self.assertEqual(resp.data["entries"][0]["weight"], "215.00")
 
-    def test_workout_without_bodyweight_fills_in_on_next_save(self):
-        wid = self.make_workout("2026-08-01")
-        self.assertIsNone(self.get(wid)["bodyweight_kg"])
-        self.assertIsNone(self.get(wid)["entries"][0]["weight"])
+    def test_logging_weight_fills_workouts_without_one(self):
+        """Workouts saved before any weight was on record pick it up as soon
+        as one is logged, calisthenics totals included."""
+        aug = self.make_workout("2026-08-01", self.pullup_set(added="25"))
+        sept = self.make_workout("2026-09-20")
+        self.assertIsNone(self.get(aug)["bodyweight_kg"])
+        self.assertIsNone(self.get(aug)["entries"][0]["weight"])
+
+        self.log("2026-09-10", "90.72")  # 200 lb
+
+        # Each resolves by its own date (Aug predates the log: earliest entry).
+        self.assertEqual(self.get(aug)["bodyweight_kg"], "90.72")
+        self.assertEqual(self.get(aug)["entries"][0]["weight"], "225.00")
+        self.assertEqual(self.get(sept)["entries"][0]["weight"], "200.00")
+        self.assertEqual(self.get(aug)["entries"][0]["added_weight"], "25.00")
+
+    def test_logging_weight_leaves_existing_snapshots_alone(self):
         self.log("2026-09-01", "90.72")
-        # Logging a weight alone doesn't touch saved workouts...
-        self.assertIsNone(self.get(wid)["bodyweight_kg"])
-        # ...but the next save picks it up (earliest entry covers older dates).
-        self.client.patch(f"/api/workouts/{wid}/", {"notes": "x"}, format="json")
+        wid = self.make_workout("2026-09-15")
+        self.log("2026-09-10", "85")  # closer to the workout's date
+        self.log("2026-09-01", "80")  # same-day correction
+        self.assertEqual(self.get(wid)["bodyweight_kg"], "90.72")
         self.assertEqual(self.get(wid)["entries"][0]["weight"], "200.00")
+
+    def test_editing_a_log_entry_fills_workouts_without_one(self):
+        wid = self.make_workout("2026-09-15")
+        bob = User.objects.create_user("bob", password="pw")
+        entry = BodyweightLog.objects.create(owner=self.user, date="2026-09-01", weight_kg="90")
+        self.client.patch(f"/api/bodyweight/{entry.id}/", {"weight_kg": "90.72"}, format="json")
+        self.assertEqual(self.get(wid)["entries"][0]["weight"], "200.00")
+        # Another user's history never fills this user's workouts, or vice versa.
+        self.client.force_authenticate(bob)
+        self.assertIsNone(self.get(self.make_workout("2026-09-15"))["bodyweight_kg"])
 
     def test_added_weight_only_kept_for_calisthenics(self):
         self.log("2026-10-01", "58.97")

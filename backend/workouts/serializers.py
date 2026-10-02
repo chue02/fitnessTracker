@@ -154,10 +154,7 @@ class WorkoutSerializer(serializers.ModelSerializer):
             self._sync_entries(instance, entries_data)
         elif bodyweight_changed:
             # Entries weren't resent, so re-total the stored calisthenics sets.
-            entries = list(instance.entries.filter(equipment=WorkoutEntry.Equipment.CALISTHENICS))
-            for entry in entries:
-                entry.apply_bodyweight(instance.bodyweight_kg)
-            WorkoutEntry.objects.bulk_update(entries, ["weight"])
+            instance.retotal_calisthenics()
         return instance
 
     @staticmethod

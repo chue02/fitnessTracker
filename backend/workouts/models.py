@@ -130,6 +130,13 @@ class Workout(models.Model):
     def __str__(self):
         return f"Workout on {self.date}"
 
+    def retotal_calisthenics(self):
+        """Recompute stored calisthenics totals from the current snapshot."""
+        entries = list(self.entries.filter(equipment=WorkoutEntry.Equipment.CALISTHENICS))
+        for entry in entries:
+            entry.apply_bodyweight(self.bodyweight_kg)
+        WorkoutEntry.objects.bulk_update(entries, ["weight"])
+
 
 class WorkoutEntry(models.Model):
     """One row = one set (strength) or one segment (cardio) within a workout.
@@ -249,6 +256,21 @@ class BodyweightLog(models.Model):
 
     def __str__(self):
         return f"{self.owner} {self.weight_kg} kg on {self.date}"
+
+
+def fill_missing_bodyweights(owner):
+    """Give the owner's workouts that have NO bodyweight snapshot one from
+    their current history, and total their calisthenics sets. Run whenever a
+    weight is logged. Workouts that already have a snapshot are left alone, so
+    logging, correcting or deleting history never rewrites them."""
+    history = BodyweightLog.objects.filter(owner=owner)
+    for workout in Workout.objects.filter(owner=owner, bodyweight_kg__isnull=True):
+        entry = history.as_of(workout.date)
+        if entry is None:
+            return  # no history at all, so nothing can be filled
+        workout.bodyweight_kg = entry.weight_kg
+        workout.save(update_fields=["bodyweight_kg"])
+        workout.retotal_calisthenics()
 
 
 class UserProfile(models.Model):

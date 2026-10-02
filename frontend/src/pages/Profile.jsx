@@ -283,7 +283,7 @@ function BodyweightHistory({ history, unit, onChange }) {
       <h2 style={{ marginTop: 0 }}>Bodyweight history</h2>
       <p className="muted small" style={{ marginTop: 0 }}>
         Changing or deleting entries here won't alter workouts
-        already logged.
+        already logged. Workouts logged with no bodyweight on record pick one up when you log a weight.
       </p>
 
       {history.length === 0 ? (
