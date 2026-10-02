@@ -77,18 +77,6 @@ class WorkoutViewSet(viewsets.ModelViewSet):
             "entries__exercise"
         )
 
-    def get_serializer_context(self):
-        # Each workout reports the bodyweight in effect on its date; load the
-        # history once here instead of once per workout.
-        context = super().get_serializer_context()
-        if self.request.user.is_authenticated:
-            context["bodyweights"] = list(
-                BodyweightLog.objects.filter(owner=self.request.user)
-                .order_by("date")
-                .values_list("date", "weight_kg")
-            )
-        return context
-
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
 

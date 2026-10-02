@@ -274,7 +274,7 @@ function BodyweightHistory({ history, unit, onChange }) {
   }
 
   function remove(entry) {
-    if (!confirm(`Delete the ${entry.date} weight? Workouts from that date will use the previous entry instead.`)) return
+    if (!confirm(`Delete the ${entry.date} weight? Workouts already logged keep the weight recorded with them.`)) return
     run(() => api.del(`/bodyweight/${entry.id}/`))
   }
 
@@ -282,7 +282,8 @@ function BodyweightHistory({ history, unit, onChange }) {
     <div className="card">
       <h2 style={{ marginTop: 0 }}>Bodyweight history</h2>
       <p className="muted small" style={{ marginTop: 0 }}>
-        Calisthenics sets count your bodyweight as of the workout's date, plus any added weight.
+        Changing or deleting entries here won't alter workouts
+        already logged.
       </p>
 
       {history.length === 0 ? (

@@ -32,12 +32,15 @@ can mix both. Browse past workouts in the history view.
   stored metric; the frontend converts for display. The profile's `weight_kg`
   is read-only: the latest **BodyweightLog** entry.
 - **BodyweightLog** — dated bodyweight history, one entry per user per day.
-  Each workout reports a read-only `bodyweight_kg`: the latest entry on or
-  before its date (or the earliest entry, for workouts older than any log).
-  Logging a new weight only adds an entry, so earlier workouts keep the weight
-  they were done at — even if they're edited or logged after the fact. Stats
-  treat **Calisthenics** sets as bodyweight work: load = that day's bodyweight
-  + the set's `weight` (added load, e.g. a weighted pull-up).
+  When a workout is saved, the server copies the weight in effect on its date
+  (latest entry on or before it, else the earliest entry) into the workout's
+  read-only `bodyweight_kg`. It's a snapshot: editing or deleting history never
+  changes a logged workout. It's only re-taken if the workout's date changes,
+  or on the next save of a workout that had no weight on record.
+- **Calisthenics sets** store their total load in `weight` (snapshot
+  bodyweight + `added_weight`), computed server-side — e.g. 130 lb bodyweight
+  with `added_weight: 25` is stored as `weight: 155`. Clients send only
+  `added_weight`; stats read `weight` like any other set.
 
 ## Getting started
 

@@ -306,58 +306,120 @@ class BodyweightTests(AuthedTestCase):
             "/api/bodyweight/", {"date": date, "weight_kg": kg}, format="json"
         )
 
-    def make_workout(self, date):
+    def pullup_set(self, added=None, **extra):
+        return {
+            "exercise": self.pullups.id,
+            "reps": 8,
+            "equipment": "calisthenics",
+            "weight_unit": "lb",
+            "added_weight": added,
+            **extra,
+        }
+
+    def make_workout(self, date, *entries):
         resp = self.client.post(
             "/api/workouts/",
-            {
-                "date": date,
-                "entries": [
-                    {"exercise": self.pullups.id, "reps": 8, "equipment": "calisthenics"}
-                ],
-            },
+            {"date": date, "entries": list(entries) or [self.pullup_set()]},
             format="json",
         )
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.data)
         return resp.data["id"]
 
-    def bodyweight_of(self, workout_id):
-        return self.client.get(f"/api/workouts/{workout_id}/").data["bodyweight_kg"]
+    def get(self, workout_id):
+        return self.client.get(f"/api/workouts/{workout_id}/").data
 
     def test_later_weight_does_not_change_earlier_workouts(self):
         """200 lb in September, 190 lb in October: each month keeps its own."""
-        self.log("2026-09-01", "90.72")  # ~200 lb
+        self.log("2026-09-01", "90.72")  # 200 lb
         sept = self.make_workout("2026-09-15")
-        self.log("2026-10-01", "86.18")  # ~190 lb
+        self.log("2026-10-01", "86.18")  # 190 lb
         octo = self.make_workout("2026-10-05")
 
-        self.assertEqual(self.bodyweight_of(sept), "90.72")
-        self.assertEqual(self.bodyweight_of(octo), "86.18")
-        # The list endpoint (preloaded history) agrees with the detail endpoint.
-        listed = {w["id"]: w["bodyweight_kg"] for w in self.client.get("/api/workouts/").data}
-        self.assertEqual(listed, {sept: "90.72", octo: "86.18"})
+        self.assertEqual(self.get(sept)["bodyweight_kg"], "90.72")
+        self.assertEqual(self.get(sept)["entries"][0]["weight"], "200.00")
+        self.assertEqual(self.get(octo)["entries"][0]["weight"], "190.00")
 
-    def test_editing_old_workout_keeps_its_bodyweight(self):
+    def test_added_weight_is_stored_as_total(self):
+        """130 lb bodyweight + 25 lb attached is stored as 155 lb."""
+        self.log("2026-10-01", "58.97")  # 130 lb
+        wid = self.make_workout("2026-10-05", self.pullup_set(added="25"))
+        entry = self.get(wid)["entries"][0]
+        self.assertEqual(entry["weight"], "155.00")
+        self.assertEqual(entry["added_weight"], "25.00")
+
+    def test_total_in_kg_for_kg_sets(self):
+        self.log("2026-10-01", "58.97")
+        wid = self.make_workout("2026-10-05", self.pullup_set(added="10", weight_unit="kg"))
+        self.assertEqual(self.get(wid)["entries"][0]["weight"], "68.97")
+
+    def test_client_cannot_set_calisthenics_total(self):
+        self.log("2026-10-01", "58.97")
+        wid = self.make_workout("2026-10-05", self.pullup_set(added="25", weight="999"))
+        self.assertEqual(self.get(wid)["entries"][0]["weight"], "155.00")
+
+    def test_deleting_history_does_not_change_logged_workouts(self):
         self.log("2026-09-01", "90.72")
-        sept = self.make_workout("2026-09-15")
-        self.log("2026-10-01", "86.18")
+        entry_id = BodyweightLog.objects.get(owner=self.user).id
+        wid = self.make_workout("2026-09-15", self.pullup_set(added="25"))
+        self.client.delete(f"/api/bodyweight/{entry_id}/")
+
+        workout = self.get(wid)
+        self.assertEqual(workout["bodyweight_kg"], "90.72")
+        self.assertEqual(workout["entries"][0]["weight"], "225.00")
+
+        # Re-saving the workout (the editor resends every entry) keeps it too.
         resp = self.client.patch(
-            f"/api/workouts/{sept}/", {"notes": "edited in October"}, format="json"
+            f"/api/workouts/{wid}/",
+            {"notes": "edited", "entries": [self.pullup_set(added="25")]},
+            format="json",
         )
         self.assertEqual(resp.data["bodyweight_kg"], "90.72")
+        self.assertEqual(resp.data["entries"][0]["weight"], "225.00")
+
+    def test_changing_history_does_not_change_logged_workouts(self):
+        self.log("2026-09-01", "90.72")
+        wid = self.make_workout("2026-09-15")
+        self.log("2026-09-01", "80")  # correct that day's entry
+        self.log("2026-09-10", "85")  # backfill one closer to the workout
+        self.client.patch(
+            f"/api/workouts/{wid}/", {"entries": [self.pullup_set()]}, format="json"
+        )
+        self.assertEqual(self.get(wid)["entries"][0]["weight"], "200.00")
 
     def test_backdated_workout_uses_weight_from_its_date(self):
         self.log("2026-09-01", "90.72")
         self.log("2026-10-01", "86.18")
-        # Logged in October, but done in September.
         late = self.make_workout("2026-09-20")
-        self.assertEqual(self.bodyweight_of(late), "90.72")
+        self.assertEqual(self.get(late)["bodyweight_kg"], "90.72")
 
-    def test_workouts_before_any_log_use_earliest_weight(self):
-        early = self.make_workout("2026-08-01")
-        self.assertIsNone(self.bodyweight_of(early))
+    def test_moving_workout_to_another_date_resnapshots(self):
         self.log("2026-09-01", "90.72")
         self.log("2026-10-01", "86.18")
-        self.assertEqual(self.bodyweight_of(early), "90.72")
+        wid = self.make_workout("2026-09-15", self.pullup_set(added="25"))
+        resp = self.client.patch(f"/api/workouts/{wid}/", {"date": "2026-10-05"}, format="json")
+        self.assertEqual(resp.data["bodyweight_kg"], "86.18")
+        self.assertEqual(resp.data["entries"][0]["weight"], "215.00")
+
+    def test_workout_without_bodyweight_fills_in_on_next_save(self):
+        wid = self.make_workout("2026-08-01")
+        self.assertIsNone(self.get(wid)["bodyweight_kg"])
+        self.assertIsNone(self.get(wid)["entries"][0]["weight"])
+        self.log("2026-09-01", "90.72")
+        # Logging a weight alone doesn't touch saved workouts...
+        self.assertIsNone(self.get(wid)["bodyweight_kg"])
+        # ...but the next save picks it up (earliest entry covers older dates).
+        self.client.patch(f"/api/workouts/{wid}/", {"notes": "x"}, format="json")
+        self.assertEqual(self.get(wid)["entries"][0]["weight"], "200.00")
+
+    def test_added_weight_only_kept_for_calisthenics(self):
+        self.log("2026-10-01", "58.97")
+        wid = self.make_workout(
+            "2026-10-05",
+            self.pullup_set(added="25", equipment="barbell", weight="100"),
+        )
+        entry = self.get(wid)["entries"][0]
+        self.assertEqual(entry["weight"], "100.00")
+        self.assertIsNone(entry["added_weight"])
 
     def test_same_day_log_replaces_weight(self):
         self.assertEqual(self.log("2026-10-01", "86").status_code, status.HTTP_201_CREATED)
@@ -381,5 +443,4 @@ class BodyweightTests(AuthedTestCase):
         bob = User.objects.create_user("bob", password="pw")
         self.client.force_authenticate(bob)
         self.assertEqual(self.client.get("/api/bodyweight/").data, [])
-        bob_workout = self.make_workout("2026-10-05")
-        self.assertIsNone(self.bodyweight_of(bob_workout))
+        self.assertIsNone(self.get(self.make_workout("2026-10-05"))["bodyweight_kg"])

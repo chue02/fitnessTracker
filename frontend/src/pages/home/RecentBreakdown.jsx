@@ -14,7 +14,7 @@ const STAT_COLUMNS = [
     key: 'maxLb',
     label: 'Max lb',
     title: 'Heaviest set',
-    body: 'The single heaviest load lifted. Sets logged in kg are converted to pounds; calisthenics sets count your bodyweight on that day plus any added weight.',
+    body: 'The single heaviest load lifted. Sets logged in kg are converted to pounds; calisthenics sets count the bodyweight recorded with that workout plus any added weight.',
   },
   {
     key: 'wtdAvgLb',

@@ -1,5 +1,3 @@
-from bisect import bisect_right
-
 from django.utils import timezone
 from rest_framework import serializers
 
@@ -72,6 +70,7 @@ class WorkoutEntrySerializer(serializers.ModelSerializer):
             "notes",
             "reps",
             "weight",
+            "added_weight",
             "weight_unit",
             "equipment",
             "is_warmup",
@@ -95,7 +94,7 @@ class WorkoutEntrySerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"exercise": "Unknown exercise."})
 
         if exercise.category == Exercise.Category.CARDIO:
-            if attrs.get("reps") is not None or attrs.get("weight") is not None:
+            if any(attrs.get(f) is not None for f in ("reps", "weight", "added_weight")):
                 raise serializers.ValidationError(
                     "Cardio entries cannot have reps or weight."
                 )
@@ -110,51 +109,65 @@ class WorkoutEntrySerializer(serializers.ModelSerializer):
 
 class WorkoutSerializer(serializers.ModelSerializer):
     entries = WorkoutEntrySerializer(many=True)
-    # The owner's bodyweight on the workout's date (see BodyweightLog.as_of),
-    # for stats on bodyweight exercises. Derived on every read rather than
-    # stored, so it can't go stale or be rewritten by editing the workout.
-    bodyweight_kg = serializers.SerializerMethodField()
 
     class Meta:
         model = Workout
         fields = ["id", "date", "notes", "created_at", "bodyweight_kg", "entries"]
-        read_only_fields = ["created_at"]
+        # bodyweight_kg is a server-side snapshot of the owner's history.
+        read_only_fields = ["created_at", "bodyweight_kg"]
 
-    def get_bodyweight_kg(self, workout):
-        # The viewset preloads the owner's history (oldest first) so a list
-        # resolves every workout from one query.
-        history = self.context.get("bodyweights")
-        if history is None:
-            entry = BodyweightLog.objects.filter(owner=workout.owner).as_of(workout.date)
-            return str(entry.weight_kg) if entry else None
-        if not history:
-            return None
-        i = bisect_right(history, workout.date, key=lambda row: row[0])
-        # Same rule as as_of: latest on or before the date, else the earliest.
-        return str(history[i - 1][1] if i else history[0][1])
+    @staticmethod
+    def _bodyweight_on(owner, day):
+        entry = BodyweightLog.objects.filter(owner=owner).as_of(day)
+        return entry.weight_kg if entry else None
 
     def create(self, validated_data):
         entries_data = validated_data.pop("entries", [])
+        validated_data["bodyweight_kg"] = self._bodyweight_on(
+            validated_data.get("owner"), validated_data.get("date", timezone.localdate())
+        )
         workout = Workout.objects.create(**validated_data)
         self._sync_entries(workout, entries_data)
         return workout
 
     def update(self, instance, validated_data):
         entries_data = validated_data.pop("entries", None)
+        date_changed = "date" in validated_data and validated_data["date"] != instance.date
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
+
+        # Keep the snapshot unless the workout moved to another day (a
+        # different day can mean a different weight) or none was on record
+        # when it was first saved. Never cleared: if history no longer covers
+        # the date, the existing snapshot stands.
+        bodyweight_changed = False
+        if date_changed or instance.bodyweight_kg is None:
+            bodyweight = self._bodyweight_on(instance.owner, instance.date)
+            if bodyweight is not None and bodyweight != instance.bodyweight_kg:
+                instance.bodyweight_kg = bodyweight
+                bodyweight_changed = True
         instance.save()
+
         if entries_data is not None:
             # Simplest correct strategy: replace the child set on every write.
             instance.entries.all().delete()
             self._sync_entries(instance, entries_data)
+        elif bodyweight_changed:
+            # Entries weren't resent, so re-total the stored calisthenics sets.
+            entries = list(instance.entries.filter(equipment=WorkoutEntry.Equipment.CALISTHENICS))
+            for entry in entries:
+                entry.apply_bodyweight(instance.bodyweight_kg)
+            WorkoutEntry.objects.bulk_update(entries, ["weight"])
         return instance
 
     @staticmethod
     def _sync_entries(workout, entries_data):
-        WorkoutEntry.objects.bulk_create(
-            [WorkoutEntry(workout=workout, **entry) for entry in entries_data]
-        )
+        entries = [WorkoutEntry(workout=workout, **entry) for entry in entries_data]
+        # Calisthenics totals are always computed here from the snapshot, never
+        # taken from the client.
+        for entry in entries:
+            entry.apply_bodyweight(workout.bodyweight_kg)
+        WorkoutEntry.objects.bulk_create(entries)
 
 
 class TemplateExerciseSerializer(serializers.ModelSerializer):

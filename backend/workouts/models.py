@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
@@ -90,6 +92,17 @@ class Exercise(models.Model):
         return self.name
 
 
+LB_PER_KG = Decimal("2.20462")
+
+
+def bodyweight_in(weight_kg, unit):
+    """A kg bodyweight in `unit`. lb is rounded to 0.1 so a weight entered in
+    lb survives its trip through kg (130 lb -> 58.97 kg -> 130.0 lb)."""
+    if unit == "lb":
+        return (weight_kg * LB_PER_KG).quantize(Decimal("0.1"))
+    return weight_kg
+
+
 class Workout(models.Model):
     """A dated training session. Can mix strength and cardio entries."""
 
@@ -102,6 +115,13 @@ class Workout(models.Model):
         blank=True,
         on_delete=models.CASCADE,
         related_name="workouts",
+    )
+    # The owner's bodyweight for this workout, copied from their history
+    # (BodyweightLog.as_of the workout's date) when the workout is saved. A
+    # snapshot, not a reference: editing or deleting history afterwards never
+    # changes a logged workout. Null if no weight was on record.
+    bodyweight_kg = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True
     )
 
     class Meta:
@@ -145,7 +165,14 @@ class WorkoutEntry(models.Model):
 
     # Strength fields
     reps = models.PositiveIntegerField(null=True, blank=True)
+    # The load moved. For calisthenics this is the TOTAL — the workout's
+    # bodyweight plus `added_weight` — computed when saved (see apply_bodyweight).
     weight = models.DecimalField(
+        max_digits=7, decimal_places=2, null=True, blank=True
+    )
+    # Calisthenics only: what the user entered, e.g. +25 for a weighted
+    # pull-up. Kept so the set can be edited as "+25" again.
+    added_weight = models.DecimalField(
         max_digits=7, decimal_places=2, null=True, blank=True
     )
     weight_unit = models.CharField(
@@ -173,6 +200,19 @@ class WorkoutEntry(models.Model):
     def __str__(self):
         return f"{self.exercise.name} ({self.workout.date})"
 
+    def apply_bodyweight(self, bodyweight_kg):
+        """Set a calisthenics set's total `weight` from a bodyweight (kg) and
+        its `added_weight`. Unknown bodyweight leaves the total unknown."""
+        if self.equipment != self.Equipment.CALISTHENICS:
+            self.added_weight = None
+            return
+        if bodyweight_kg is None:
+            self.weight = None
+        else:
+            self.weight = bodyweight_in(bodyweight_kg, self.weight_unit) + (
+                self.added_weight or 0
+            )
+
 
 class BodyweightLogQuerySet(models.QuerySet):
     def as_of(self, day):
@@ -184,10 +224,10 @@ class BodyweightLogQuerySet(models.QuerySet):
 
 
 class BodyweightLog(models.Model):
-    """A user's bodyweight as of a date. History is append-only from the
-    user's point of view: logging a new weight adds a row for that day and
-    never touches earlier ones, so stats for past workouts (which resolve
-    bodyweight by workout date) can't shift when the user's weight changes."""
+    """A user's bodyweight as of a date. Logging a new weight adds a row for
+    that day and never touches earlier ones. Workouts copy the weight in
+    effect on their date when saved (Workout.bodyweight_kg), so changing this
+    history later doesn't alter workouts already logged."""
 
     objects = BodyweightLogQuerySet.as_manager()
 

@@ -16,7 +16,7 @@ import { blocksToTemplateExercises, templateToBlocks } from '../templates.js'
 // New entries start in the user's preferred units (profile `weight_unit`);
 // metric users get km for cardio too.
 function blankStrengthEntry(weightUnit, equipment = '') {
-  return { reps: null, weight: null, weight_unit: weightUnit, equipment, is_warmup: false }
+  return { reps: null, weight: null, added_weight: null, weight_unit: weightUnit, equipment, is_warmup: false }
 }
 function blankCardioEntry(weightUnit) {
   const distance_unit = weightUnit === 'kg' ? 'km' : 'mi'
@@ -57,6 +57,7 @@ function workoutToBlocks(workout) {
         : {
             reps: e.reps,
             weight: e.weight,
+            added_weight: e.added_weight,
             weight_unit: e.weight_unit,
             equipment: e.equipment ?? '',
             is_warmup: e.is_warmup,

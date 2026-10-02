@@ -156,9 +156,14 @@ export function describeEntry(entry) {
     if (entry.avg_heart_rate != null) bits.push(`${entry.avg_heart_rate} bpm`)
     return bits.join(' · ') || '—'
   }
-  // Calisthenics weight is load added to the body, hence the "+".
-  const added = entry.equipment === 'calisthenics' ? '+' : ''
-  const w = entry.weight != null ? `${added}${Number(entry.weight)} ${entry.weight_unit}` : 'bodyweight'
+  let w = entry.weight != null ? `${Number(entry.weight)} ${entry.weight_unit}` : 'bodyweight'
+  if (entry.equipment === 'calisthenics') {
+    // Stored weight is the total; show how it breaks down. A set not yet
+    // saved (or saved with no bodyweight on record) has no total.
+    const added = Number(entry.added_weight)
+    const plus = added ? ` + ${added} ${entry.weight_unit}` : ''
+    w = entry.weight != null ? `${Number(entry.weight)} ${entry.weight_unit} (BW${plus})` : `BW${plus}`
+  }
   const reps = entry.reps != null ? `${entry.reps} reps` : ''
   const warm = entry.is_warmup ? ' (warmup)' : ''
   const summary = [reps, reps && w ? '@' : '', w].filter(Boolean).join(' ') + warm
