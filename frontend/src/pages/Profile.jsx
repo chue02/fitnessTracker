@@ -63,11 +63,20 @@ export default function Profile() {
   const [error, setError] = useState(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  // The latest logged weight, to tell whether the form's weight is a change.
+  const [savedWeightKg, setSavedWeightKg] = useState(null)
+  // Dated bodyweight entries, newest first.
+  const [history, setHistory] = useState([])
+
+  function loadProfile(p) {
+    setForm(profileToForm(p))
+    setSavedWeightKg(num(p.weight_kg ?? ''))
+  }
+
+  const loadHistory = () => api.get('/bodyweight/').then(setHistory)
 
   useEffect(() => {
-    api
-      .get('/profile/')
-      .then((p) => setForm(profileToForm(p)))
+    Promise.all([api.get('/profile/').then(loadProfile), loadHistory()])
       .catch((e) => setError(errorMessage(e)))
   }, [])
 
@@ -85,6 +94,16 @@ export default function Profile() {
     setSaved(false)
   }
 
+  // After the history changes, pick up the (possibly new) latest weight without
+  // discarding other unsaved edits in the form.
+  async function refreshWeight() {
+    const [p] = await Promise.all([api.get('/profile/'), loadHistory()])
+    setProfile(p)
+    const weightKg = num(p.weight_kg ?? '')
+    setSavedWeightKg(weightKg)
+    setForm((f) => ({ ...f, weight: measurementsToForm(f.weight_unit, null, weightKg).weight }))
+  }
+
   async function onSubmit(e) {
     e.preventDefault()
     setError(null)
@@ -96,16 +115,22 @@ export default function Profile() {
     }
     setSaving(true)
     try {
+      // A changed weight is logged as of today rather than overwriting the old
+      // one, so workouts from earlier dates keep the weight they were done at.
+      // A blanked field is left alone: history isn't cleared from here.
+      if (weightKg != null && weightKg !== savedWeightKg) {
+        await api.post('/bodyweight/', { date: isoDate(new Date()), weight_kg: weightKg })
+        await loadHistory()
+      }
       const p = await api.patch('/profile/', {
         weight_unit: form.weight_unit,
         height_cm: heightCm,
-        weight_kg: weightKg,
         sex: form.sex,
         date_of_birth: form.date_of_birth || null,
         avg_bpm: bpm,
       })
       setProfile(p)
-      setForm(profileToForm(p))
+      loadProfile(p)
       setSaved(true)
     } catch (err) {
       setError(errorMessage(err))
@@ -160,6 +185,9 @@ export default function Profile() {
             <input type="number" min="0" step="0.1" value={form.weight} onChange={(e) => set('weight', e.target.value)} />
             <span className="muted">{form.weight_unit}</span>
           </div>
+          <div className="muted small" style={{ marginTop: 4 }}>
+            A new weight is logged as of today. Earlier workouts keep the weight from their own date.
+          </div>
         </div>
 
         <div style={field}>
@@ -201,6 +229,91 @@ export default function Profile() {
         </div>
         {error && <div className="error">{error}</div>}
       </form>
+
+      <BodyweightHistory history={history} unit={form.weight_unit} onChange={refreshWeight} />
+    </div>
+  )
+}
+
+// Past bodyweights, for backfilling a weight you didn't log at the time or
+// fixing a typo. Each entry applies to workouts from its date until the next.
+function BodyweightHistory({ history, unit, onChange }) {
+  const [date, setDate] = useState(() => isoDate(new Date()))
+  const [weight, setWeight] = useState('')
+  const [error, setError] = useState(null)
+  const [busy, setBusy] = useState(false)
+
+  const show = (kg) => (unit === 'lb' ? kgToLb(Number(kg)) : Number(kg))
+
+  async function run(action) {
+    setError(null)
+    setBusy(true)
+    try {
+      await action()
+      await onChange()
+    } catch (err) {
+      setError(errorMessage(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function add(e) {
+    e.preventDefault()
+    const n = num(weight)
+    if (n == null || !Number.isFinite(n)) {
+      setError('Enter a weight.')
+      return
+    }
+    const weight_kg = unit === 'lb' ? lbToKg(n) : round(n, 2)
+    // Same-day entries replace the old one (the API upserts by date).
+    run(async () => {
+      await api.post('/bodyweight/', { date, weight_kg })
+      setWeight('')
+    })
+  }
+
+  function remove(entry) {
+    if (!confirm(`Delete the ${entry.date} weight? Workouts from that date will use the previous entry instead.`)) return
+    run(() => api.del(`/bodyweight/${entry.id}/`))
+  }
+
+  return (
+    <div className="card">
+      <h2 style={{ marginTop: 0 }}>Bodyweight history</h2>
+      <p className="muted small" style={{ marginTop: 0 }}>
+        Calisthenics sets count your bodyweight as of the workout's date, plus any added weight.
+      </p>
+
+      {history.length === 0 ? (
+        <div className="muted small" style={{ marginBottom: 12 }}>No weights logged yet.</div>
+      ) : (
+        <div style={{ marginBottom: 12 }}>
+          {history.map((entry) => (
+            <div key={entry.id} className="row between" style={{ padding: '4px 0' }}>
+              <span>{entry.date}</span>
+              <span className="row" style={{ gap: 8 }}>
+                <span>
+                  {show(entry.weight_kg)} {unit}
+                </span>
+                <button type="button" className="btn danger small" disabled={busy} onClick={() => remove(entry)}>
+                  ✕
+                </button>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <form className="row" style={{ gap: 6 }} onSubmit={add}>
+        <input type="date" max={isoDate(new Date())} value={date} onChange={(e) => setDate(e.target.value)} />
+        <input type="number" min="0" step="0.1" placeholder="weight" value={weight} onChange={(e) => setWeight(e.target.value)} />
+        <span className="muted">{unit}</span>
+        <button className="btn small" type="submit" disabled={busy || !date}>
+          Log
+        </button>
+      </form>
+      {error && <div className="error">{error}</div>}
     </div>
   )
 }

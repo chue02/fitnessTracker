@@ -47,13 +47,18 @@ export default function FavoritePRs({ workouts, limit = 4 }) {
                 <>
                   <div className="pr-value">
                     {pr.weight} {pr.weightUnit}
+                    {pr.bodyweight && (
+                      <span className="muted small" title="Your bodyweight on that day, plus any added weight">
+                        {' '}incl. BW
+                      </span>
+                    )}
                   </div>
                   <Link to={`/workouts/${pr.workoutId}`} className="small">
                     {pr.date}
                   </Link>
                 </>
               ) : (
-                // Bodyweight-only lifts have no weighted set to rank.
+                // No set with a known load (e.g. bodyweight work before any weight is logged).
                 <div className="muted">—</div>
               )}
             </div>

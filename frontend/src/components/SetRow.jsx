@@ -38,7 +38,9 @@ export default function SetRow({ index, entry, onChange, onRemove }) {
         type="number"
         min="0"
         step="0.5"
-        placeholder="weight"
+        // Calisthenics: bodyweight is counted automatically; this is extra load.
+        placeholder={entry.equipment === 'calisthenics' ? '+ weight' : 'weight'}
+        title={entry.equipment === 'calisthenics' ? 'Added weight (bodyweight is counted automatically)' : undefined}
         value={entry.weight ?? ''}
         onChange={(e) => set('weight', e.target.value === '' ? null : e.target.value)}
       />

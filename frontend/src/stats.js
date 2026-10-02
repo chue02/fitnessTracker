@@ -1,9 +1,13 @@
 // Aggregation helpers for the home screen. Pure functions over the workout list
 // returned by GET /api/workouts/ (owner-scoped, newest first, entries nested).
 //
-// Two things about the API shape drive most of the care below:
+// Three things about the API shape drive most of the care below:
 //   - `weight`/`distance` are DRF DecimalFields, so they arrive as STRINGS.
 //   - `weight_unit` is per set, so a history can mix lb and kg.
+//   - Each workout carries `bodyweight_kg`, the user's weight ON THAT WORKOUT'S
+//     DATE (resolved server-side from their dated history). Bodyweight sets use
+//     it, never the current profile weight, so logging a new weight can't
+//     rewrite the stats of earlier workouts.
 
 import {
   EQUIPMENT_ORDER, isoDate, MUSCLE_ORDER, parseIso, SPLIT_ORDER, workoutSummary,
@@ -24,14 +28,40 @@ export function toLb(weight, unit) {
   return unit === 'kg' ? n * LB_PER_KG : n
 }
 
-// A set that counts toward volume and PRs: strength, not a warmup, and actually
-// loaded (bodyweight sets have weight === null).
-export function isWorkingSet(entry) {
+// Calisthenics sets are bodyweight work. Their `weight`, if any, is load ADDED
+// to the body (a weighted pull-up), not the total moved.
+export function isBodyweightSet(entry) {
+  return entry.equipment === 'calisthenics'
+}
+
+// The load a set actually moved, in lb: the logged weight for ordinary lifts;
+// bodyweight on the workout's date plus any added weight for bodyweight sets.
+// null when unknowable — no weight logged, or no bodyweight on record.
+export function loadLb(entry, workout) {
+  if (isBodyweightSet(entry)) {
+    if (workout.bodyweight_kg == null) return null
+    const added = entry.weight != null ? toLb(entry.weight, entry.weight_unit) : 0
+    return toLb(workout.bodyweight_kg, 'kg') + added
+  }
+  return entry.weight != null ? toLb(entry.weight, entry.weight_unit) : null
+}
+
+// A load for display in the set's own unit: the number as logged for ordinary
+// lifts, the bodyweight-inclusive total for bodyweight sets.
+function displayLoad(entry, lb) {
+  if (!isBodyweightSet(entry)) return Number(entry.weight)
+  const n = entry.weight_unit === 'kg' ? lb / LB_PER_KG : lb
+  return Math.round(n * 10) / 10
+}
+
+// A set that counts toward volume and PRs: strength, not a warmup, with reps
+// and a known load (see loadLb).
+export function isWorkingSet(entry, workout) {
   return (
     entry.exercise_category === 'strength' &&
     !entry.is_warmup &&
-    entry.weight != null &&
-    entry.reps != null
+    entry.reps != null &&
+    loadLb(entry, workout) != null
   )
 }
 
@@ -86,9 +116,9 @@ export function summarizeWorkouts(workouts) {
     for (const e of w.entries) {
       exercises.add(e.exercise)
       allEntries.push(e)
-      if (isWorkingSet(e)) {
+      if (isWorkingSet(e, w)) {
         workingSets += 1
-        volumeLb += toLb(e.weight, e.weight_unit) * e.reps
+        volumeLb += loadLb(e, w) * e.reps
       }
       if (e.exercise_category === 'strength' && e.is_warmup) warmupSets += 1
       if (e.exercise_category === 'cardio') {
@@ -190,10 +220,11 @@ export function recentRecords(workouts, limit = 5) {
 
   for (const w of ordered) {
     for (const e of w.entries) {
-      if (!isWorkingSet(e)) continue
+      if (!isWorkingSet(e, w)) continue
       const equipment = e.equipment || ''
       const key = `${e.exercise}::${equipment}`
-      const current = { lb: toLb(e.weight, e.weight_unit), weight: Number(e.weight), unit: e.weight_unit, reps: e.reps }
+      const lb = loadLb(e, w)
+      const current = { lb, weight: displayLoad(e, lb), unit: e.weight_unit, reps: e.reps }
       const prev = best.get(key)
       if (!prev) {
         best.set(key, current)
@@ -209,6 +240,7 @@ export function recentRecords(workouts, limit = 5) {
           weight: current.weight,
           weightUnit: current.unit,
           reps: current.reps,
+          bodyweight: isBodyweightSet(e),
           // Reported in the new set's unit so the delta reads consistently.
           gain: Math.round((current.lb - prev.lb) * (current.unit === 'kg' ? 1 / LB_PER_KG : 1) * 10) / 10,
           previousWeight: prev.weight,
@@ -227,7 +259,7 @@ export function recentRecords(workouts, limit = 5) {
 // Whether the history contains any weighted working set at all — used to tell
 // "no PRs yet" apart from "no strength training logged yet".
 export function hasWorkingSets(workouts) {
-  return workouts.some((w) => w.entries.some(isWorkingSet))
+  return workouts.some((w) => w.entries.some((e) => isWorkingSet(e, w)))
 }
 
 // Heaviest weight ever lifted for one exercise, warmups excluded. Ranked on the
@@ -239,9 +271,9 @@ export function personalRecord(workouts, exerciseId, equipment = null) {
   let best = null
   for (const w of workouts) {
     for (const e of w.entries) {
-      if (e.exercise !== exerciseId || !isWorkingSet(e)) continue
+      if (e.exercise !== exerciseId || !isWorkingSet(e, w)) continue
       if (equipment !== null && (e.equipment || '') !== equipment) continue
-      const lb = toLb(e.weight, e.weight_unit)
+      const lb = loadLb(e, w)
       const better =
         !best ||
         lb > best.lb ||
@@ -250,9 +282,10 @@ export function personalRecord(workouts, exerciseId, equipment = null) {
       if (better) {
         best = {
           lb,
-          weight: Number(e.weight),
+          weight: displayLoad(e, lb),
           weightUnit: e.weight_unit,
           reps: e.reps,
+          bodyweight: isBodyweightSet(e),
           date: w.date,
           workoutId: w.id,
         }
@@ -384,9 +417,9 @@ export function splitBalance(workouts, today = new Date(), windowDays = 30) {
 //   MAX Lbs, Lbs Wtd Avg, SUM of Sets, SUM of Reps, Avg Reps/Set
 // where the weighted average is volume over reps, i.e. Σ(weight × reps) / Σ(reps).
 
-// Roll a list of sets into that stat line. Weight-less (bodyweight) sets still
-// count toward sets/reps but can't contribute to a load average, so a group
-// with no loaded sets reports null rather than a misleading 0.
+// Roll a list of sets into that stat line. Sets with no known load (see loadLb)
+// still count toward sets/reps but can't contribute to a load average, so a
+// group with no loaded sets reports null rather than a misleading 0.
 function statsFor(entries) {
   let sets = 0
   let reps = 0
@@ -398,8 +431,8 @@ function statsFor(entries) {
     sets += 1
     const r = e.reps ?? 0
     reps += r
-    if (e.weight != null) {
-      const lb = toLb(e.weight, e.weight_unit)
+    if (e.loadLb != null) {
+      const lb = e.loadLb
       if (maxLb === null || lb > maxLb) maxLb = lb
       volumeLb += lb * r
       loadedReps += r
@@ -415,7 +448,8 @@ function statsFor(entries) {
   }
 }
 
-// Every strength set from the trailing `days`-day window, warmups excluded.
+// Every strength set from the trailing `days`-day window, warmups excluded,
+// each tagged with its `loadLb` while its workout (and bodyweight) is at hand.
 function recentStrengthEntries(workouts, today, days) {
   const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (days - 1))
   const startIso = isoDate(start)
@@ -427,7 +461,7 @@ function recentStrengthEntries(workouts, today, days) {
     for (const e of w.entries) {
       // Cardio has no reps or load, and warmups would deflate the averages.
       if (e.exercise_category !== 'strength' || e.is_warmup) continue
-      out.push(e)
+      out.push({ ...e, loadLb: loadLb(e, w) })
     }
   }
   return out

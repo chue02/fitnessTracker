@@ -156,7 +156,9 @@ export function describeEntry(entry) {
     if (entry.avg_heart_rate != null) bits.push(`${entry.avg_heart_rate} bpm`)
     return bits.join(' · ') || '—'
   }
-  const w = entry.weight != null ? `${Number(entry.weight)} ${entry.weight_unit}` : 'bodyweight'
+  // Calisthenics weight is load added to the body, hence the "+".
+  const added = entry.equipment === 'calisthenics' ? '+' : ''
+  const w = entry.weight != null ? `${added}${Number(entry.weight)} ${entry.weight_unit}` : 'bodyweight'
   const reps = entry.reps != null ? `${entry.reps} reps` : ''
   const warm = entry.is_warmup ? ' (warmup)' : ''
   const summary = [reps, reps && w ? '@' : '', w].filter(Boolean).join(' ') + warm

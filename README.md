@@ -28,9 +28,16 @@ can mix both. Browse past workouts in the history view.
   sets, reps or weight are stored; those are entered fresh each time.
 - **UserProfile** — one per user (created on first access): preferred unit
   (`weight_unit`: `lb` → ft/in & mi, `kg` → cm & km), plus optional vitals:
-  `height_cm`, `weight_kg`, `sex`, `date_of_birth`, `avg_bpm` (resting).
-  Height/weight are always stored metric; the frontend converts for display,
-  so changing the unit preference never alters the stored values.
+  `height_cm`, `sex`, `date_of_birth`, `avg_bpm` (resting). Height is always
+  stored metric; the frontend converts for display. The profile's `weight_kg`
+  is read-only: the latest **BodyweightLog** entry.
+- **BodyweightLog** — dated bodyweight history, one entry per user per day.
+  Each workout reports a read-only `bodyweight_kg`: the latest entry on or
+  before its date (or the earliest entry, for workouts older than any log).
+  Logging a new weight only adds an entry, so earlier workouts keep the weight
+  they were done at — even if they're edited or logged after the fact. Stats
+  treat **Calisthenics** sets as bodyweight work: load = that day's bodyweight
+  + the set's `weight` (added load, e.g. a weighted pull-up).
 
 ## Getting started
 
@@ -72,6 +79,8 @@ Base path `/api/`:
 | GET/POST | `/exercises/` | List / create exercises. Filters: `?category=`, `?muscle_group=`, `?is_custom=` |
 | GET/POST | `/workouts/` | List (newest first) / create a workout with nested `entries` |
 | GET/PATCH/DELETE | `/workouts/{id}/` | Retrieve / update / delete a workout |
+| GET/POST | `/bodyweight/` | Bodyweight history (newest first) / log a `{date, weight_kg}` — replaces that date's entry if one exists |
+| GET/PATCH/DELETE | `/bodyweight/{id}/` | Retrieve / correct / delete one entry |
 | GET/PATCH | `/profile/` | The signed-in user's unit preference and vitals (also nested on `/auth/me/`) |
 
 A workout is created in a single POST with its entries nested, e.g.:

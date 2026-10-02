@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from .models import (
+    BodyweightLog,
     Exercise,
     TemplateExercise,
     UserProfile,
@@ -10,9 +11,15 @@ from .models import (
 )
 
 
+@admin.register(BodyweightLog)
+class BodyweightLogAdmin(admin.ModelAdmin):
+    list_display = ("owner", "date", "weight_kg")
+    list_filter = ("owner",)
+
+
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ("user", "weight_unit", "height_cm", "weight_kg", "sex", "avg_bpm")
+    list_display = ("user", "weight_unit", "height_cm", "sex", "avg_bpm")
 
 
 @admin.register(Exercise)

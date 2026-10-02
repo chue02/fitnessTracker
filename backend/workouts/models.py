@@ -174,13 +174,50 @@ class WorkoutEntry(models.Model):
         return f"{self.exercise.name} ({self.workout.date})"
 
 
+class BodyweightLogQuerySet(models.QuerySet):
+    def as_of(self, day):
+        """The weight in effect on `day`: the latest entry on or before it,
+        falling back to the earliest entry for days before any were logged.
+        None if the user has never logged a weight."""
+        on_or_before = self.filter(date__lte=day).order_by("-date").first()
+        return on_or_before or self.order_by("date").first()
+
+
+class BodyweightLog(models.Model):
+    """A user's bodyweight as of a date. History is append-only from the
+    user's point of view: logging a new weight adds a row for that day and
+    never touches earlier ones, so stats for past workouts (which resolve
+    bodyweight by workout date) can't shift when the user's weight changes."""
+
+    objects = BodyweightLogQuerySet.as_manager()
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="bodyweights",
+    )
+    date = models.DateField(default=timezone.localdate)
+    weight_kg = models.DecimalField(max_digits=5, decimal_places=2)
+
+    class Meta:
+        ordering = ["-date"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["owner", "date"], name="unique_bodyweight_per_day"
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.owner} {self.weight_kg} kg on {self.date}"
+
+
 class UserProfile(models.Model):
     """Per-user preferences and body vitals. Every field is optional so a new
     account works before the profile is filled in.
 
-    Height and weight are stored in canonical metric (cm, kg) regardless of
-    `weight_unit`; the frontend converts for display. That way flipping the
-    unit preference never rewrites or loses the stored values."""
+    Height is stored in cm regardless of `weight_unit`; the frontend converts
+    for display. Weight isn't stored here at all — it changes over time, so it
+    lives in BodyweightLog and the profile reports the latest entry."""
 
     class Sex(models.TextChoices):
         MALE = "male", "Male"
@@ -199,9 +236,6 @@ class UserProfile(models.Model):
     )
     height_cm = models.DecimalField(
         max_digits=5, decimal_places=1, null=True, blank=True
-    )
-    weight_kg = models.DecimalField(
-        max_digits=5, decimal_places=2, null=True, blank=True
     )
     sex = models.CharField(max_length=8, choices=Sex.choices, blank=True)
     date_of_birth = models.DateField(null=True, blank=True)

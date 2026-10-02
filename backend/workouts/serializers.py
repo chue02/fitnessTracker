@@ -1,7 +1,10 @@
+from bisect import bisect_right
+
 from django.utils import timezone
 from rest_framework import serializers
 
 from .models import (
+    BodyweightLog,
     Exercise,
     TemplateExercise,
     UserProfile,
@@ -107,11 +110,28 @@ class WorkoutEntrySerializer(serializers.ModelSerializer):
 
 class WorkoutSerializer(serializers.ModelSerializer):
     entries = WorkoutEntrySerializer(many=True)
+    # The owner's bodyweight on the workout's date (see BodyweightLog.as_of),
+    # for stats on bodyweight exercises. Derived on every read rather than
+    # stored, so it can't go stale or be rewritten by editing the workout.
+    bodyweight_kg = serializers.SerializerMethodField()
 
     class Meta:
         model = Workout
-        fields = ["id", "date", "notes", "created_at", "entries"]
+        fields = ["id", "date", "notes", "created_at", "bodyweight_kg", "entries"]
         read_only_fields = ["created_at"]
+
+    def get_bodyweight_kg(self, workout):
+        # The viewset preloads the owner's history (oldest first) so a list
+        # resolves every workout from one query.
+        history = self.context.get("bodyweights")
+        if history is None:
+            entry = BodyweightLog.objects.filter(owner=workout.owner).as_of(workout.date)
+            return str(entry.weight_kg) if entry else None
+        if not history:
+            return None
+        i = bisect_right(history, workout.date, key=lambda row: row[0])
+        # Same rule as as_of: latest on or before the date, else the earliest.
+        return str(history[i - 1][1] if i else history[0][1])
 
     def create(self, validated_data):
         entries_data = validated_data.pop("entries", [])
@@ -214,10 +234,9 @@ class UserProfileSerializer(serializers.ModelSerializer):
         max_digits=5, decimal_places=1, min_value=50, max_value=275,
         required=False, allow_null=True,
     )
-    weight_kg = serializers.DecimalField(
-        max_digits=5, decimal_places=2, min_value=20, max_value=450,
-        required=False, allow_null=True,
-    )
+    # Latest logged bodyweight. Read-only: weight changes go through
+    # /bodyweight/ so they land as dated history instead of overwriting it.
+    weight_kg = serializers.SerializerMethodField()
     avg_bpm = serializers.IntegerField(
         min_value=25, max_value=220, required=False, allow_null=True
     )
@@ -233,7 +252,22 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "avg_bpm",
         ]
 
+    def get_weight_kg(self, profile):
+        latest = BodyweightLog.objects.filter(owner=profile.user).first()
+        return str(latest.weight_kg) if latest else None
+
     def validate_date_of_birth(self, value):
         if value is not None and value > timezone.localdate():
             raise serializers.ValidationError("Date of birth can't be in the future.")
         return value
+
+
+class BodyweightLogSerializer(serializers.ModelSerializer):
+    # Same sanity bounds as the rest of the profile.
+    weight_kg = serializers.DecimalField(
+        max_digits=5, decimal_places=2, min_value=20, max_value=450
+    )
+
+    class Meta:
+        model = BodyweightLog
+        fields = ["id", "date", "weight_kg"]

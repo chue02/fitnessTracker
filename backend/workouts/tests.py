@@ -3,7 +3,7 @@ from django.core.management import call_command
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from .models import Exercise, Workout, WorkoutEntry, WorkoutTemplate
+from .models import BodyweightLog, Exercise, Workout, WorkoutEntry, WorkoutTemplate
 
 
 class ExerciseModelTests(APITestCase):
@@ -247,7 +247,6 @@ class UserProfileTests(AuthedTestCase):
             {
                 "weight_unit": "kg",
                 "height_cm": "180.3",
-                "weight_kg": "81.65",
                 "sex": "female",
                 "date_of_birth": "1995-04-12",
                 "avg_bpm": 62,
@@ -258,7 +257,6 @@ class UserProfileTests(AuthedTestCase):
         profile = self.client.get("/api/profile/").data
         self.assertEqual(profile["weight_unit"], "kg")
         self.assertEqual(profile["height_cm"], "180.3")
-        self.assertEqual(profile["weight_kg"], "81.65")
         self.assertEqual(profile["sex"], "female")
         self.assertEqual(profile["avg_bpm"], 62)
 
@@ -272,7 +270,6 @@ class UserProfileTests(AuthedTestCase):
     def test_implausible_values_rejected(self):
         for field, value in [
             ("height_cm", "5"),
-            ("weight_kg", "1000"),
             ("avg_bpm", 400),
             ("weight_unit", "stone"),
             ("date_of_birth", "2999-01-01"),
@@ -295,3 +292,94 @@ class UserProfileTests(AuthedTestCase):
         self.client.force_authenticate(None)
         resp = self.client.get("/api/profile/")
         self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class BodyweightTests(AuthedTestCase):
+    def setUp(self):
+        super().setUp()
+        self.pullups = Exercise.objects.create(
+            name="Pull Ups", muscle_group="back", is_custom=False
+        )
+
+    def log(self, date, kg):
+        return self.client.post(
+            "/api/bodyweight/", {"date": date, "weight_kg": kg}, format="json"
+        )
+
+    def make_workout(self, date):
+        resp = self.client.post(
+            "/api/workouts/",
+            {
+                "date": date,
+                "entries": [
+                    {"exercise": self.pullups.id, "reps": 8, "equipment": "calisthenics"}
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.data)
+        return resp.data["id"]
+
+    def bodyweight_of(self, workout_id):
+        return self.client.get(f"/api/workouts/{workout_id}/").data["bodyweight_kg"]
+
+    def test_later_weight_does_not_change_earlier_workouts(self):
+        """200 lb in September, 190 lb in October: each month keeps its own."""
+        self.log("2026-09-01", "90.72")  # ~200 lb
+        sept = self.make_workout("2026-09-15")
+        self.log("2026-10-01", "86.18")  # ~190 lb
+        octo = self.make_workout("2026-10-05")
+
+        self.assertEqual(self.bodyweight_of(sept), "90.72")
+        self.assertEqual(self.bodyweight_of(octo), "86.18")
+        # The list endpoint (preloaded history) agrees with the detail endpoint.
+        listed = {w["id"]: w["bodyweight_kg"] for w in self.client.get("/api/workouts/").data}
+        self.assertEqual(listed, {sept: "90.72", octo: "86.18"})
+
+    def test_editing_old_workout_keeps_its_bodyweight(self):
+        self.log("2026-09-01", "90.72")
+        sept = self.make_workout("2026-09-15")
+        self.log("2026-10-01", "86.18")
+        resp = self.client.patch(
+            f"/api/workouts/{sept}/", {"notes": "edited in October"}, format="json"
+        )
+        self.assertEqual(resp.data["bodyweight_kg"], "90.72")
+
+    def test_backdated_workout_uses_weight_from_its_date(self):
+        self.log("2026-09-01", "90.72")
+        self.log("2026-10-01", "86.18")
+        # Logged in October, but done in September.
+        late = self.make_workout("2026-09-20")
+        self.assertEqual(self.bodyweight_of(late), "90.72")
+
+    def test_workouts_before_any_log_use_earliest_weight(self):
+        early = self.make_workout("2026-08-01")
+        self.assertIsNone(self.bodyweight_of(early))
+        self.log("2026-09-01", "90.72")
+        self.log("2026-10-01", "86.18")
+        self.assertEqual(self.bodyweight_of(early), "90.72")
+
+    def test_same_day_log_replaces_weight(self):
+        self.assertEqual(self.log("2026-10-01", "86").status_code, status.HTTP_201_CREATED)
+        resp = self.log("2026-10-01", "85.5")
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(BodyweightLog.objects.filter(owner=self.user).count(), 1)
+        self.assertEqual(resp.data["weight_kg"], "85.50")
+
+    def test_profile_reports_latest_weight_read_only(self):
+        self.log("2026-09-01", "90.72")
+        self.log("2026-10-01", "86.18")
+        self.assertEqual(self.client.get("/api/profile/").data["weight_kg"], "86.18")
+        self.client.patch("/api/profile/", {"weight_kg": "50"}, format="json")
+        self.assertEqual(self.client.get("/api/profile/").data["weight_kg"], "86.18")
+
+    def test_implausible_weight_rejected(self):
+        self.assertEqual(self.log("2026-10-01", "1000").status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_history_is_private(self):
+        self.log("2026-10-01", "86")
+        bob = User.objects.create_user("bob", password="pw")
+        self.client.force_authenticate(bob)
+        self.assertEqual(self.client.get("/api/bodyweight/").data, [])
+        bob_workout = self.make_workout("2026-10-05")
+        self.assertIsNone(self.bodyweight_of(bob_workout))
