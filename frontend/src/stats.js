@@ -234,7 +234,7 @@ export function personalRecord(workouts, exerciseId, equipment = null) {
 }
 
 // A logged distance in `unit` ('mi' or 'km'); null when missing or unparsable.
-function distanceIn(distance, fromUnit, unit) {
+export function distanceIn(distance, fromUnit, unit) {
   if (distance == null) return null
   const n = Number(distance)
   if (!Number.isFinite(n)) return null
@@ -249,7 +249,12 @@ function distanceIn(distance, fromUnit, unit) {
 // don't pass for race pace. Pace only uses segments with both a distance and a
 // time. Each record is null if nothing logged supports it; ties go to the
 // first date it was hit, as with personalRecord.
-export function cardioRecords(workouts, exerciseId, unit = 'mi') {
+//
+// `minDistance` (in `unit`) limits the pace record to sessions at least that
+// long, e.g. 5 for "fastest 5 km+". It allows 0.5% of slack so a 5K logged as
+// 3.1 mi still counts as 5 km. Farthest and longest ignore it.
+export function cardioRecords(workouts, exerciseId, unit = 'mi', minDistance = 0) {
+  const qualifies = (distance) => distance >= minDistance * 0.995
   let fastest = null
   let farthest = null
   let longest = null
@@ -276,7 +281,7 @@ export function cardioRecords(workouts, exerciseId, unit = 'mi') {
     }
 
     const at = { date: w.date, workoutId: w.id }
-    if (pacedDistance > 0) {
+    if (pacedDistance > 0 && qualifies(pacedDistance)) {
       const pace = pacedSeconds / pacedDistance // seconds per unit
       if (beats(fastest, pace, w.date, true)) fastest = { value: pace, distance: pacedDistance, ...at }
     }

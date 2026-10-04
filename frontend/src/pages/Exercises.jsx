@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api.js'
 import { useAuth } from '../auth.jsx'
-import { MAX_FAVORITES, saveFavorites } from '../favorites.js'
+import { MAX_FAVORITES, minDistanceLabel, saveFavorites } from '../favorites.js'
 import { equipmentLabel, errorMessage, MUSCLE_ORDER, MUSCLE_TO_SPLIT, SPLIT_ORDER } from '../format.js'
 
 // Split is derived from muscle group, so it isn't an input — only muscle is.
@@ -83,9 +83,14 @@ export default function Exercises() {
   }
 
   function starTitle(starred, pinned) {
-    if (starred && pinned[0].exercise_category === 'cardio') return 'Favorite — click to remove'
     if (starred) {
-      const variants = pinned.map((f) => (f.equipment ? equipmentLabel(f.equipment) : 'any resistance'))
+      const variants = pinned.map((f) =>
+        f.exercise_category === 'cardio'
+          ? minDistanceLabel(f) || 'any distance'
+          : f.equipment
+            ? equipmentLabel(f.equipment)
+            : 'any resistance'
+      )
       return `Favorite (${variants.join(', ')}) — click to remove`
     }
     if (favorites.length >= MAX_FAVORITES) return `Up to ${MAX_FAVORITES} favorites — remove one first`

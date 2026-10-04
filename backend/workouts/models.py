@@ -309,9 +309,14 @@ class UserProfile(models.Model):
 
 
 class FavoriteExercise(models.Model):
-    """A lift the user pinned to track its PR on the home screen. Like a
-    template slot, a favorite is an exercise plus an optional resistance: with
-    one, the PR is for that variant; blank means the best on any resistance."""
+    """An exercise the user pinned to track its PR on the home screen.
+
+    For a lift it's the exercise plus an optional resistance, like a template
+    slot: with one, the PR is for that variant; blank means the best on any.
+    For cardio it's the exercise plus an optional minimum distance: its fastest
+    pace only counts sessions at least that long, so a short sprint can't hold
+    the record for a long run. The same exercise can be pinned more than once
+    with different variants (e.g. runs of 5 km+ and of 10 km+)."""
 
     MAX_PER_USER = 5
 
@@ -320,16 +325,28 @@ class FavoriteExercise(models.Model):
     )
     # CASCADE rather than PROTECT: deleting a custom exercise just unpins it.
     exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, related_name="+")
+    # Strength only.
     equipment = models.CharField(
         max_length=16, choices=WorkoutEntry.Equipment.choices, blank=True
+    )
+    # Cardio only; null means sessions of any distance count.
+    min_distance = models.DecimalField(
+        max_digits=6, decimal_places=2, null=True, blank=True
+    )
+    min_distance_unit = models.CharField(
+        max_length=2,
+        choices=WorkoutEntry.DistanceUnit.choices,
+        default=WorkoutEntry.DistanceUnit.MI,
     )
     order = models.PositiveIntegerField(default=0)
 
     class Meta:
         ordering = ["order", "id"]
+        # NULL min_distances never collide in the database, so duplicates of an
+        # "any distance" favorite are caught by the profile serializer instead.
         constraints = [
             models.UniqueConstraint(
-                fields=["profile", "exercise", "equipment"],
+                fields=["profile", "exercise", "equipment", "min_distance", "min_distance_unit"],
                 name="unique_favorite_per_profile",
             )
         ]

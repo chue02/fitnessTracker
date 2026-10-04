@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.utils import timezone
 from rest_framework import serializers
 
@@ -250,6 +252,10 @@ class FavoriteExerciseSerializer(serializers.ModelSerializer):
     exercise_secondary_muscles = serializers.CharField(
         source="exercise.secondary_muscles", read_only=True
     )
+    min_distance = serializers.DecimalField(
+        max_digits=6, decimal_places=2, min_value=Decimal("0.01"), max_value=1000,
+        required=False, allow_null=True,
+    )
 
     class Meta:
         model = FavoriteExercise
@@ -261,6 +267,8 @@ class FavoriteExerciseSerializer(serializers.ModelSerializer):
             "exercise_muscle_group",
             "exercise_secondary_muscles",
             "equipment",
+            "min_distance",
+            "min_distance_unit",
         ]
 
     def validate_exercise(self, exercise):
@@ -270,10 +278,16 @@ class FavoriteExerciseSerializer(serializers.ModelSerializer):
         return exercise
 
     def validate(self, attrs):
-        # Resistance only distinguishes strength variants; a cardio favorite
-        # never carries one, so (exercise, "") is its only form.
+        # Each category has its own variant field; clear the other so a
+        # favorite has exactly one form (and duplicates are detectable).
+        attrs.setdefault("equipment", "")
         if attrs["exercise"].category == Exercise.Category.CARDIO:
             attrs["equipment"] = ""
+        else:
+            attrs["min_distance"] = None
+        if attrs.get("min_distance") is None:
+            attrs["min_distance"] = None
+            attrs["min_distance_unit"] = WorkoutEntry.DistanceUnit.MI
         return attrs
 
 
@@ -320,9 +334,12 @@ class UserProfileSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 f"Pick at most {FavoriteExercise.MAX_PER_USER} favorites."
             )
-        pairs = [(f["exercise"].pk, f.get("equipment", "")) for f in value]
-        if len(set(pairs)) != len(pairs):
-            raise serializers.ValidationError("That lift is already a favorite.")
+        variants = [
+            (f["exercise"].pk, f["equipment"], f["min_distance"], f["min_distance_unit"])
+            for f in value
+        ]
+        if len(set(variants)) != len(variants):
+            raise serializers.ValidationError("That exercise is already a favorite.")
         return value
 
     def update(self, instance, validated_data):

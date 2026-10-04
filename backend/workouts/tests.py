@@ -519,6 +519,31 @@ class FavoriteExerciseTests(AuthedTestCase):
         resp = self.save([self.fav(self.run), self.fav(self.run, "cable")])
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def run_fav(self, min_distance, unit="km"):
+        return {"exercise": self.run.pk, "min_distance": min_distance, "min_distance_unit": unit}
+
+    def test_cardio_min_distance_variants(self):
+        resp = self.save([self.run_fav("5"), self.run_fav("10"), self.run_fav(None)])
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
+        self.assertEqual(
+            [(f["min_distance"], f["min_distance_unit"]) for f in resp.data["favorites"]],
+            [("5.00", "km"), ("10.00", "km"), (None, "mi")],
+        )
+        # The same minimum twice is a duplicate, however it's written.
+        resp = self.save([self.run_fav("5"), self.run_fav("5.00")])
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        # ...but the same number in another unit is a different distance.
+        resp = self.save([self.run_fav("5", "km"), self.run_fav("5", "mi")])
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
+
+    def test_min_distance_must_be_positive(self):
+        self.assertEqual(self.save([self.run_fav("0")]).status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_min_distance_dropped_for_lifts(self):
+        resp = self.save([{"exercise": self.lifts[0].pk, "min_distance": "5", "min_distance_unit": "km"}])
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
+        self.assertIsNone(resp.data["favorites"][0]["min_distance"])
+
     def test_others_custom_exercise_rejected(self):
         bob = User.objects.create_user("bob", password="pw")
         bobs = Exercise.objects.create(name="Bob Lift", owner=bob)
