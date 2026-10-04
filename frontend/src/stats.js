@@ -137,49 +137,6 @@ export function weekTotals(days) {
   return summarizeWorkouts(days.flatMap((d) => d.workouts))
 }
 
-// The user's de facto favorite lifts: the strength exercises they log the most
-// sets of. Ties break toward the more recently trained, then by name so the
-// order is stable across renders.
-export function topExercises(workouts, limit = 4) {
-  const byExercise = new Map()
-  for (const w of workouts) {
-    for (const e of w.entries) {
-      if (e.exercise_category !== 'strength') continue
-      // Resistance is part of the lift's identity: a barbell chest press and a
-      // machine chest press are different movements with different records, and
-      // pooling them lets the easier one shadow the real best.
-      const equipment = e.equipment || ''
-      const key = `${e.exercise}::${equipment}`
-      let row = byExercise.get(key)
-      if (!row) {
-        row = {
-          key,
-          id: e.exercise,
-          equipment,
-          name: e.exercise_name,
-          muscleGroup: e.exercise_muscle_group,
-          split: e.exercise_split,
-          secondaryMuscles: e.exercise_secondary_muscles,
-          setCount: 0,
-          lastDate: w.date,
-        }
-        byExercise.set(key, row)
-      }
-      row.setCount += 1
-      if (w.date > row.lastDate) row.lastDate = w.date
-    }
-  }
-
-  return [...byExercise.values()]
-    .sort(
-      (a, b) =>
-        b.setCount - a.setCount ||
-        b.lastDate.localeCompare(a.lastDate) ||
-        a.name.localeCompare(b.name),
-    )
-    .slice(0, limit)
-}
-
 // The most recent times a lift beat its own previous best, newest first.
 //
 // A first-ever logged set is NOT a record here: with nothing to compare against
@@ -265,6 +222,8 @@ export function personalRecord(workouts, exerciseId, equipment = null) {
           weightUnit: e.weight_unit,
           reps: e.reps,
           bodyweight: isBodyweightSet(e),
+          // Which resistance it was set on — informative when `equipment` was omitted.
+          equipment: e.equipment || '',
           date: w.date,
           workoutId: w.id,
         }

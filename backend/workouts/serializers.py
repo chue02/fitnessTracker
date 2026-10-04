@@ -4,6 +4,7 @@ from rest_framework import serializers
 from .models import (
     BodyweightLog,
     Exercise,
+    FavoriteExercise,
     TemplateExercise,
     UserProfile,
     Workout,
@@ -237,6 +238,41 @@ class WorkoutTemplateSerializer(serializers.ModelSerializer):
         )
 
 
+class FavoriteExerciseSerializer(serializers.ModelSerializer):
+    exercise_name = serializers.CharField(source="exercise.name", read_only=True)
+    exercise_category = serializers.CharField(
+        source="exercise.category", read_only=True
+    )
+    exercise_split = serializers.CharField(source="exercise.split", read_only=True)
+    exercise_muscle_group = serializers.CharField(
+        source="exercise.muscle_group", read_only=True
+    )
+    exercise_secondary_muscles = serializers.CharField(
+        source="exercise.secondary_muscles", read_only=True
+    )
+
+    class Meta:
+        model = FavoriteExercise
+        fields = [
+            "exercise",
+            "exercise_name",
+            "exercise_category",
+            "exercise_split",
+            "exercise_muscle_group",
+            "exercise_secondary_muscles",
+            "equipment",
+        ]
+
+    def validate_exercise(self, exercise):
+        user = self.context["request"].user
+        if not Exercise.objects.visible_to(user).filter(pk=exercise.pk).exists():
+            raise serializers.ValidationError("Unknown exercise.")
+        # Favorites exist to show a PR, and cardio has none.
+        if exercise.category != Exercise.Category.STRENGTH:
+            raise serializers.ValidationError("Only strength exercises can be favorites.")
+        return exercise
+
+
 class UserProfileSerializer(serializers.ModelSerializer):
     # Sanity bounds that catch unit mix-ups (e.g. lb typed into a kg field)
     # without rejecting any plausible adult or child.
@@ -250,6 +286,9 @@ class UserProfileSerializer(serializers.ModelSerializer):
     avg_bpm = serializers.IntegerField(
         min_value=25, max_value=220, required=False, allow_null=True
     )
+    # Ordered lifts pinned to the home screen. Optional on write: a PATCH that
+    # leaves it out (e.g. saving vitals) keeps the current favorites.
+    favorites = FavoriteExerciseSerializer(many=True, required=False)
 
     class Meta:
         model = UserProfile
@@ -260,6 +299,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "sex",
             "date_of_birth",
             "avg_bpm",
+            "favorites",
         ]
 
     def get_weight_kg(self, profile):
@@ -270,6 +310,30 @@ class UserProfileSerializer(serializers.ModelSerializer):
         if value is not None and value > timezone.localdate():
             raise serializers.ValidationError("Date of birth can't be in the future.")
         return value
+
+    def validate_favorites(self, value):
+        if len(value) > FavoriteExercise.MAX_PER_USER:
+            raise serializers.ValidationError(
+                f"Pick at most {FavoriteExercise.MAX_PER_USER} favorites."
+            )
+        pairs = [(f["exercise"].pk, f.get("equipment", "")) for f in value]
+        if len(set(pairs)) != len(pairs):
+            raise serializers.ValidationError("That lift is already a favorite.")
+        return value
+
+    def update(self, instance, validated_data):
+        favorites_data = validated_data.pop("favorites", None)
+        instance = super().update(instance, validated_data)
+        if favorites_data is not None:
+            # Replace the whole list on every write; list position is the order.
+            instance.favorites.all().delete()
+            FavoriteExercise.objects.bulk_create(
+                [
+                    FavoriteExercise(profile=instance, order=i, **fav)
+                    for i, fav in enumerate(favorites_data)
+                ]
+            )
+        return instance
 
 
 class BodyweightLogSerializer(serializers.ModelSerializer):

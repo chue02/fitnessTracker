@@ -308,6 +308,36 @@ class UserProfile(models.Model):
         return f"Profile of {self.user}"
 
 
+class FavoriteExercise(models.Model):
+    """A lift the user pinned to track its PR on the home screen. Like a
+    template slot, a favorite is an exercise plus an optional resistance: with
+    one, the PR is for that variant; blank means the best on any resistance."""
+
+    MAX_PER_USER = 5
+
+    profile = models.ForeignKey(
+        UserProfile, on_delete=models.CASCADE, related_name="favorites"
+    )
+    # CASCADE rather than PROTECT: deleting a custom exercise just unpins it.
+    exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, related_name="+")
+    equipment = models.CharField(
+        max_length=16, choices=WorkoutEntry.Equipment.choices, blank=True
+    )
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["profile", "exercise", "equipment"],
+                name="unique_favorite_per_profile",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.exercise.name} (favorite of {self.profile.user})"
+
+
 class WorkoutTemplate(models.Model):
     """A reusable workout skeleton: an ordered list of exercises and nothing
     else. Sets, reps and weight are deliberately not stored — they're entered

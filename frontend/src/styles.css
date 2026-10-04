@@ -8,6 +8,7 @@
   --accent: #4f8cff;
   --accent-2: #3fb27f;
   --danger: #e5484d;
+  --star: #f5c542;
 }
 
 * { box-sizing: border-box; }
@@ -466,3 +467,17 @@ th { color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--borde
 .template-exercises { margin: 10px 0 0; padding-left: 22px; }
 .template-exercises li { margin-top: 6px; }
 .template-exercises li > * { margin-right: 8px; vertical-align: middle; }
+
+/* Favorite toggle on the exercises table. */
+.star-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 2px;
+}
+.star-btn:hover:not(:disabled), .star-btn:focus-visible { color: var(--text); }
+.star-btn.on { color: var(--star); }
+.star-btn:disabled { opacity: 0.35; cursor: not-allowed; }
