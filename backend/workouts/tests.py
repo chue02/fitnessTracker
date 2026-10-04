@@ -467,3 +467,109 @@ class BodyweightTests(AuthedTestCase):
         self.client.force_authenticate(bob)
         self.assertEqual(self.client.get("/api/bodyweight/").data, [])
         self.assertIsNone(self.get(self.make_workout("2026-10-05"))["bodyweight_kg"])
+
+
+class FavoriteExerciseTests(AuthedTestCase):
+    def setUp(self):
+        super().setUp()
+        self.lifts = [
+            Exercise.objects.create(name=f"Lift {i}", is_custom=False, muscle_group="chest")
+            for i in range(6)
+        ]
+        self.run = Exercise.objects.create(
+            name="Run", is_custom=False, category=Exercise.Category.CARDIO
+        )
+
+    def save(self, favorites):
+        return self.client.patch("/api/profile/", {"favorites": favorites}, format="json")
+
+    def fav(self, exercise, equipment=""):
+        return {"exercise": exercise.pk, "equipment": equipment}
+
+    def test_round_trip_keeps_order_and_resistance(self):
+        resp = self.save([self.fav(self.lifts[2], "barbell"), self.fav(self.lifts[0])])
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
+        favorites = self.client.get("/api/auth/me/").data["profile"]["favorites"]
+        self.assertEqual(
+            [(f["exercise"], f["equipment"]) for f in favorites],
+            [(self.lifts[2].pk, "barbell"), (self.lifts[0].pk, "")],
+        )
+        self.assertEqual(favorites[0]["exercise_name"], "Lift 2")
+        self.assertEqual(favorites[0]["exercise_split"], "push")
+
+    def test_at_most_five(self):
+        resp = self.save([self.fav(ex) for ex in self.lifts])
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self.client.get("/api/profile/").data["favorites"], [])
+
+    def test_duplicate_rejected_but_other_resistance_allowed(self):
+        lift = self.lifts[0]
+        resp = self.save([self.fav(lift, "barbell"), self.fav(lift, "barbell")])
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        resp = self.save([self.fav(lift, "barbell"), self.fav(lift, "dumbbell")])
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
+
+    def test_cardio_allowed_without_resistance(self):
+        resp = self.save([self.fav(self.run, "barbell")])
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
+        [fav] = resp.data["favorites"]
+        self.assertEqual(fav["exercise_category"], "cardio")
+        self.assertEqual(fav["equipment"], "")
+        # With resistance dropped, these are the same favorite twice.
+        resp = self.save([self.fav(self.run), self.fav(self.run, "cable")])
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def run_fav(self, min_distance, unit="km"):
+        return {"exercise": self.run.pk, "min_distance": min_distance, "min_distance_unit": unit}
+
+    def test_cardio_min_distance_variants(self):
+        resp = self.save([self.run_fav("5"), self.run_fav("10"), self.run_fav(None)])
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
+        self.assertEqual(
+            [(f["min_distance"], f["min_distance_unit"]) for f in resp.data["favorites"]],
+            [("5.00", "km"), ("10.00", "km"), (None, "mi")],
+        )
+        # The same minimum twice is a duplicate, however it's written.
+        resp = self.save([self.run_fav("5"), self.run_fav("5.00")])
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        # ...but the same number in another unit is a different distance.
+        resp = self.save([self.run_fav("5", "km"), self.run_fav("5", "mi")])
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
+
+    def test_min_distance_must_be_positive(self):
+        self.assertEqual(self.save([self.run_fav("0")]).status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_min_distance_dropped_for_lifts(self):
+        resp = self.save([{"exercise": self.lifts[0].pk, "min_distance": "5", "min_distance_unit": "km"}])
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
+        self.assertIsNone(resp.data["favorites"][0]["min_distance"])
+
+    def test_others_custom_exercise_rejected(self):
+        bob = User.objects.create_user("bob", password="pw")
+        bobs = Exercise.objects.create(name="Bob Lift", owner=bob)
+        self.assertEqual(self.save([self.fav(bobs)]).status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_saving_vitals_keeps_favorites(self):
+        self.save([self.fav(self.lifts[0])])
+        self.client.patch("/api/profile/", {"avg_bpm": 60}, format="json")
+        self.assertEqual(len(self.client.get("/api/profile/").data["favorites"]), 1)
+
+    def test_replacing_and_clearing(self):
+        self.save([self.fav(self.lifts[0]), self.fav(self.lifts[1])])
+        self.save([self.fav(self.lifts[1])])
+        favorites = self.client.get("/api/profile/").data["favorites"]
+        self.assertEqual([f["exercise"] for f in favorites], [self.lifts[1].pk])
+        self.save([])
+        self.assertEqual(self.client.get("/api/profile/").data["favorites"], [])
+
+    def test_favorites_are_per_user(self):
+        self.save([self.fav(self.lifts[0])])
+        bob = User.objects.create_user("bob", password="pw")
+        self.client.force_authenticate(bob)
+        self.assertEqual(self.client.get("/api/profile/").data["favorites"], [])
+
+    def test_deleting_custom_exercise_unpins_it(self):
+        mine = Exercise.objects.create(name="My Lift", owner=self.user)
+        self.save([self.fav(mine)])
+        self.assertEqual(self.client.delete(f"/api/exercises/{mine.pk}/").status_code, 204)
+        self.assertEqual(self.client.get("/api/profile/").data["favorites"], [])

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api.js'
-import { MUSCLE_ORDER, MUSCLE_TO_SPLIT, SPLIT_ORDER } from '../format.js'
+import { useAuth } from '../auth.jsx'
+import { MAX_FAVORITES, minDistanceLabel, saveFavorites } from '../favorites.js'
+import { equipmentLabel, errorMessage, MUSCLE_ORDER, MUSCLE_TO_SPLIT, SPLIT_ORDER } from '../format.js'
 
 // Split is derived from muscle group, so it isn't an input — only muscle is.
 const rankOf = (order, v) => {
@@ -31,6 +33,13 @@ export default function Exercises() {
   const [muscleGroup, setMuscleGroup] = useState('other')
   const [secondaryMuscles, setSecondaryMuscles] = useState('')
 
+  // Favorites live on the profile; the star column edits the same list as the
+  // home screen's favorites card.
+  const { user, setProfile } = useAuth()
+  const favorites = user.profile?.favorites ?? []
+  const [favBusy, setFavBusy] = useState(false)
+  const [favError, setFavError] = useState(null)
+
   function load() {
     api.get('/exercises/').then(setExercises).catch((e) => setError(e.message))
   }
@@ -53,6 +62,39 @@ export default function Exercises() {
     } catch (err) {
       setError(typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail) || err.message)
     }
+  }
+
+  // Starring adds the exercise with no resistance (for a lift, its best on
+  // any); unstarring drops every favorite of that exercise, whatever
+  // resistance it was pinned with.
+  async function toggleFavorite(exercise, starred) {
+    const next = starred
+      ? favorites.filter((f) => f.exercise !== exercise.id)
+      : [...favorites, { exercise: exercise.id, equipment: '' }]
+    setFavError(null)
+    setFavBusy(true)
+    try {
+      await saveFavorites(next, setProfile)
+    } catch (err) {
+      setFavError(errorMessage(err))
+    } finally {
+      setFavBusy(false)
+    }
+  }
+
+  function starTitle(starred, pinned) {
+    if (starred) {
+      const variants = pinned.map((f) =>
+        f.exercise_category === 'cardio'
+          ? minDistanceLabel(f) || 'any distance'
+          : f.equipment
+            ? equipmentLabel(f.equipment)
+            : 'any resistance'
+      )
+      return `Favorite (${variants.join(', ')}) — click to remove`
+    }
+    if (favorites.length >= MAX_FAVORITES) return `Up to ${MAX_FAVORITES} favorites — remove one first`
+    return 'Add to favorites'
   }
 
   // When the active filter is a split, muscle options narrow to that split.
@@ -198,9 +240,12 @@ export default function Exercises() {
         </select>
       </div>
 
+      {favError && <div className="error">{favError}</div>}
+
       <table>
         <thead>
           <tr>
+            <th aria-label="Favorite" />
             {COLUMNS.map(([key, label]) => (
               <th
                 key={key}
@@ -216,6 +261,15 @@ export default function Exercises() {
         <tbody>
           {shown.map((x) => (
             <tr key={x.id}>
+              <td style={{ width: 1 }}>
+                <StarButton
+                  pinned={favorites.filter((f) => f.exercise === x.id)}
+                  full={favorites.length >= MAX_FAVORITES}
+                  busy={favBusy}
+                  title={starTitle}
+                  onToggle={(starred) => toggleFavorite(x, starred)}
+                />
+              </td>
               <td>{x.name}</td>
               <td>
                 <span className={`pill ${x.category}`}>{x.category}</span>
@@ -229,5 +283,21 @@ export default function Exercises() {
         </tbody>
       </table>
     </div>
+  )
+}
+
+function StarButton({ pinned, full, busy, title, onToggle }) {
+  const starred = pinned.length > 0
+  return (
+    <button
+      type="button"
+      className={'star-btn' + (starred ? ' on' : '')}
+      aria-pressed={starred}
+      title={title(starred, pinned)}
+      disabled={busy || (!starred && full)}
+      onClick={() => onToggle(starred)}
+    >
+      {starred ? '★' : '☆'}
+    </button>
   )
 }
