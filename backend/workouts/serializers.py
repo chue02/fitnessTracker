@@ -267,10 +267,14 @@ class FavoriteExerciseSerializer(serializers.ModelSerializer):
         user = self.context["request"].user
         if not Exercise.objects.visible_to(user).filter(pk=exercise.pk).exists():
             raise serializers.ValidationError("Unknown exercise.")
-        # Favorites exist to show a PR, and cardio has none.
-        if exercise.category != Exercise.Category.STRENGTH:
-            raise serializers.ValidationError("Only strength exercises can be favorites.")
         return exercise
+
+    def validate(self, attrs):
+        # Resistance only distinguishes strength variants; a cardio favorite
+        # never carries one, so (exercise, "") is its only form.
+        if attrs["exercise"].category == Exercise.Category.CARDIO:
+            attrs["equipment"] = ""
+        return attrs
 
 
 class UserProfileSerializer(serializers.ModelSerializer):

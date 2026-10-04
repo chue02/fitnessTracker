@@ -233,6 +233,60 @@ export function personalRecord(workouts, exerciseId, equipment = null) {
   return best
 }
 
+// A logged distance in `unit` ('mi' or 'km'); null when missing or unparsable.
+function distanceIn(distance, fromUnit, unit) {
+  if (distance == null) return null
+  const n = Number(distance)
+  if (!Number.isFinite(n)) return null
+  if (fromUnit === unit) return n
+  return unit === 'mi' ? n * MI_PER_KM : n / MI_PER_KM
+}
+
+// Bests for one cardio exercise: fastest pace, farthest distance, longest time.
+//
+// Records are per SESSION: every segment of the exercise in one workout is
+// summed, so a run logged as mile splits counts as one run and short intervals
+// don't pass for race pace. Pace only uses segments with both a distance and a
+// time. Each record is null if nothing logged supports it; ties go to the
+// first date it was hit, as with personalRecord.
+export function cardioRecords(workouts, exerciseId, unit = 'mi') {
+  let fastest = null
+  let farthest = null
+  let longest = null
+  const beats = (best, value, date, lowerIsBetter = false) =>
+    !best ||
+    (lowerIsBetter ? value < best.value : value > best.value) ||
+    (value === best.value && date < best.date)
+
+  for (const w of workouts) {
+    let distance = 0
+    let seconds = 0
+    let pacedDistance = 0
+    let pacedSeconds = 0
+    for (const e of w.entries) {
+      if (e.exercise !== exerciseId || e.exercise_category !== 'cardio') continue
+      const d = distanceIn(e.distance, e.distance_unit, unit)
+      const s = e.duration_seconds
+      if (d != null) distance += d
+      if (s != null) seconds += s
+      if (d > 0 && s > 0) {
+        pacedDistance += d
+        pacedSeconds += s
+      }
+    }
+
+    const at = { date: w.date, workoutId: w.id }
+    if (pacedDistance > 0) {
+      const pace = pacedSeconds / pacedDistance // seconds per unit
+      if (beats(fastest, pace, w.date, true)) fastest = { value: pace, distance: pacedDistance, ...at }
+    }
+    if (distance > 0 && beats(farthest, distance, w.date)) farthest = { value: distance, ...at }
+    if (seconds > 0 && beats(longest, seconds, w.date)) longest = { value: seconds, ...at }
+  }
+
+  return { unit, fastest, farthest, longest }
+}
+
 // --- Training habits ---
 
 // The Sunday of the week containing a YYYY-MM-DD, as a YYYY-MM-DD. Week keys

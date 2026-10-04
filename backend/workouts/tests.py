@@ -509,8 +509,15 @@ class FavoriteExerciseTests(AuthedTestCase):
         resp = self.save([self.fav(lift, "barbell"), self.fav(lift, "dumbbell")])
         self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
 
-    def test_cardio_rejected(self):
-        self.assertEqual(self.save([self.fav(self.run)]).status_code, status.HTTP_400_BAD_REQUEST)
+    def test_cardio_allowed_without_resistance(self):
+        resp = self.save([self.fav(self.run, "barbell")])
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
+        [fav] = resp.data["favorites"]
+        self.assertEqual(fav["exercise_category"], "cardio")
+        self.assertEqual(fav["equipment"], "")
+        # With resistance dropped, these are the same favorite twice.
+        resp = self.save([self.fav(self.run), self.fav(self.run, "cable")])
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_others_custom_exercise_rejected(self):
         bob = User.objects.create_user("bob", password="pw")

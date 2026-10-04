@@ -9,15 +9,18 @@ import ExerciseTags from '../../components/ExerciseTags.jsx'
 import ResistanceTag from '../../components/ResistanceTag.jsx'
 import SortableItem, { moveByKey, useReorderSensors } from '../../components/SortableItem.jsx'
 import { MAX_FAVORITES, saveFavorites } from '../../favorites.js'
-import { EQUIPMENT_ORDER, equipmentLabel, errorMessage } from '../../format.js'
-import { personalRecord } from '../../stats.js'
+import { EQUIPMENT_ORDER, equipmentLabel, errorMessage, formatDuration } from '../../format.js'
+import { cardioRecords, personalRecord } from '../../stats.js'
 
-// Personal records for the lifts the user chose as favorites (up to five),
-// in their chosen order. The card doubles as the place to pick them; the
+// Personal records for the exercises the user chose as favorites (up to
+// five), in their chosen order: heaviest set for strength, pace/distance/time
+// bests for cardio. The card doubles as the place to pick them; the
 // Exercises page can also star them.
 export default function FavoritePRs({ workouts }) {
   const { user } = useAuth()
   const favorites = user.profile?.favorites ?? []
+  // Cardio distances follow the unit preference: lb pairs with mi, kg with km.
+  const distanceUnit = user.profile?.weight_unit === 'kg' ? 'km' : 'mi'
   const [editing, setEditing] = useState(false)
 
   if (editing) return <FavoritesEditor favorites={favorites} onClose={() => setEditing(false)} />
@@ -25,7 +28,7 @@ export default function FavoritePRs({ workouts }) {
   return (
     <div className="card">
       <div className="row between">
-        <h2 style={{ margin: 0 }}>Favorite lifts</h2>
+        <h2 style={{ margin: 0 }}>Favorite exercises</h2>
         <button type="button" className="btn ghost small" onClick={() => setEditing(true)}>
           {favorites.length === 0 ? 'Choose favorites' : 'Edit'}
         </button>
@@ -33,12 +36,16 @@ export default function FavoritePRs({ workouts }) {
 
       {favorites.length === 0 ? (
         <div className="muted small" style={{ marginTop: 8 }}>
-          Pick up to {MAX_FAVORITES} lifts to track their PRs here.
+          Pick up to {MAX_FAVORITES} exercises to track their PRs here.
         </div>
       ) : (
-        favorites.map((fav) => (
-          <FavoriteRow key={`${fav.exercise}::${fav.equipment}`} fav={fav} workouts={workouts} />
-        ))
+        favorites.map((fav) =>
+          fav.exercise_category === 'cardio' ? (
+            <CardioFavoriteRow key={`${fav.exercise}::`} fav={fav} workouts={workouts} unit={distanceUnit} />
+          ) : (
+            <FavoriteRow key={`${fav.exercise}::${fav.equipment}`} fav={fav} workouts={workouts} />
+          )
+        )
       )}
     </div>
   )
@@ -99,24 +106,79 @@ function FavoriteRow({ fav, workouts }) {
   )
 }
 
+const round2 = (n) => Math.round(n * 100) / 100
+
+// Cardio has no single "heaviest", so the row carries three bests. Pace is the
+// headline, labeled with the distance it was held over so a short effort can't
+// pass for a long one; farthest and longest sit underneath.
+function CardioFavoriteRow({ fav, workouts, unit }) {
+  const { fastest, farthest, longest } = cardioRecords(workouts, fav.exercise, unit)
+  const others = [
+    farthest && { label: 'farthest', value: `${round2(farthest.value)} ${unit}`, rec: farthest },
+    longest && { label: 'longest', value: formatDuration(Math.round(longest.value)), rec: longest },
+  ].filter(Boolean)
+
+  return (
+    <div className="pr-row">
+      <div>
+        <div className="row" style={{ gap: 8 }}>
+          <span style={{ fontWeight: 600 }}>{fav.exercise_name}</span>
+          <span className="pill cardio">cardio</span>
+        </div>
+        <div className="muted small" style={{ marginTop: 4 }}>
+          {others.length === 0
+            ? 'No sessions logged yet'
+            : others.map((o, i) => (
+                <span key={o.label}>
+                  {i > 0 && ' · '}
+                  {o.label}{' '}
+                  <Link to={`/workouts/${o.rec.workoutId}`} title={o.rec.date}>
+                    {o.value}
+                  </Link>
+                </span>
+              ))}
+        </div>
+      </div>
+      <div style={{ textAlign: 'right' }}>
+        {fastest ? (
+          <>
+            <div className="pr-value">
+              {formatDuration(Math.round(fastest.value))} /{unit}
+              <span className="muted small"> over {round2(fastest.distance)} {unit}</span>
+            </div>
+            <Link to={`/workouts/${fastest.workoutId}`} className="small">
+              {fastest.date}
+            </Link>
+          </>
+        ) : (
+          // No session with both a distance and a time.
+          <div className="muted" title="Log a distance and a time to get a pace">—</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // Pick, reorder and set the resistance of the favorites. Edits a local draft;
 // nothing is saved until Save.
 function FavoritesEditor({ favorites, onClose }) {
   const { setProfile } = useAuth()
   const [exercises, setExercises] = useState([])
   const [items, setItems] = useState(() =>
-    favorites.map((f) => ({ key: crypto.randomUUID(), exercise: f.exercise, name: f.exercise_name, equipment: f.equipment }))
+    favorites.map((f) => ({
+      key: crypto.randomUUID(),
+      exercise: f.exercise,
+      name: f.exercise_name,
+      category: f.exercise_category,
+      equipment: f.equipment,
+    }))
   )
   const [error, setError] = useState(null)
   const [saving, setSaving] = useState(false)
   const sensors = useReorderSensors()
 
   useEffect(() => {
-    // Only strength work has PRs.
-    api
-      .get('/exercises/')
-      .then((list) => setExercises(list.filter((e) => e.category === 'strength')))
-      .catch((e) => setError(errorMessage(e)))
+    api.get('/exercises/').then(setExercises).catch((e) => setError(errorMessage(e)))
   }, [])
 
   const full = items.length >= MAX_FAVORITES
@@ -127,7 +189,10 @@ function FavoritesEditor({ favorites, onClose }) {
     setItems((list) =>
       list.length >= MAX_FAVORITES || list.some((it) => it.exercise === exercise.id && !it.equipment)
         ? list
-        : [...list, { key: crypto.randomUUID(), exercise: exercise.id, name: exercise.name, equipment: '' }]
+        : [
+            ...list,
+            { key: crypto.randomUUID(), exercise: exercise.id, name: exercise.name, category: exercise.category, equipment: '' },
+          ]
     )
   }
 
@@ -154,13 +219,14 @@ function FavoritesEditor({ favorites, onClose }) {
   return (
     <div className="card">
       <div className="row between">
-        <h2 style={{ margin: 0 }}>Favorite lifts</h2>
+        <h2 style={{ margin: 0 }}>Favorite exercises</h2>
         <span className="muted small">
           {items.length} of {MAX_FAVORITES} chosen
         </span>
       </div>
       <p className="muted small">
-        Leave the resistance as "any" to track your best set on whatever you did it on.
+        Leave a lift's resistance as "any" to track your best set on whatever you did it on.
+        Cardio tracks your fastest pace, farthest distance and longest time.
       </p>
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => setItems((list) => moveByKey(list, e))}>
@@ -171,16 +237,19 @@ function FavoritesEditor({ favorites, onClose }) {
                 <div className="exercise-block">
                   <div className="head" style={{ marginBottom: 0 }}>
                     {handle}
+                    {it.category === 'cardio' && <span className="pill cardio">cardio</span>}
                     <span className="name">{it.name}</span>
                     <span className="spacer" style={{ flex: 1 }} />
-                    <select value={it.equipment} onChange={(e) => setEquipment(it.key, e.target.value)}>
-                      <option value="">Any resistance</option>
-                      {EQUIPMENT_ORDER.map((code) => (
-                        <option key={code} value={code}>
-                          {equipmentLabel(code)}
-                        </option>
-                      ))}
-                    </select>
+                    {it.category !== 'cardio' && (
+                      <select value={it.equipment} onChange={(e) => setEquipment(it.key, e.target.value)}>
+                        <option value="">Any resistance</option>
+                        {EQUIPMENT_ORDER.map((code) => (
+                          <option key={code} value={code}>
+                            {equipmentLabel(code)}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                     <button type="button" className="btn danger small" onClick={() => remove(it.key)}>
                       ✕
                     </button>
@@ -200,7 +269,7 @@ function FavoritesEditor({ favorites, onClose }) {
         )}
       </div>
 
-      {hasDuplicate && <div className="error">The same lift and resistance is listed twice.</div>}
+      {hasDuplicate && <div className="error">The same exercise and resistance is listed twice.</div>}
       {error && <div className="error">{error}</div>}
 
       <div className="row" style={{ marginTop: 12 }}>

@@ -64,8 +64,9 @@ export default function Exercises() {
     }
   }
 
-  // Starring adds the lift with no resistance (best on any); unstarring drops
-  // every favorite of that exercise, whatever resistance it was pinned with.
+  // Starring adds the exercise with no resistance (for a lift, its best on
+  // any); unstarring drops every favorite of that exercise, whatever
+  // resistance it was pinned with.
   async function toggleFavorite(exercise, starred) {
     const next = starred
       ? favorites.filter((f) => f.exercise !== exercise.id)
@@ -82,6 +83,7 @@ export default function Exercises() {
   }
 
   function starTitle(starred, pinned) {
+    if (starred && pinned[0].exercise_category === 'cardio') return 'Favorite — click to remove'
     if (starred) {
       const variants = pinned.map((f) => (f.equipment ? equipmentLabel(f.equipment) : 'any resistance'))
       return `Favorite (${variants.join(', ')}) — click to remove`
@@ -255,15 +257,13 @@ export default function Exercises() {
           {shown.map((x) => (
             <tr key={x.id}>
               <td style={{ width: 1 }}>
-                {x.category === 'strength' && (
-                  <StarButton
-                    pinned={favorites.filter((f) => f.exercise === x.id)}
-                    full={favorites.length >= MAX_FAVORITES}
-                    busy={favBusy}
-                    title={starTitle}
-                    onToggle={(starred) => toggleFavorite(x, starred)}
-                  />
-                )}
+                <StarButton
+                  pinned={favorites.filter((f) => f.exercise === x.id)}
+                  full={favorites.length >= MAX_FAVORITES}
+                  busy={favBusy}
+                  title={starTitle}
+                  onToggle={(starred) => toggleFavorite(x, starred)}
+                />
               </td>
               <td>{x.name}</td>
               <td>
