@@ -4,8 +4,37 @@ import { api } from '../api.js'
 import { useAuth } from '../auth.jsx'
 import PrChart from '../components/PrChart.jsx'
 import ResistanceTag from '../components/ResistanceTag.jsx'
-import { errorMessage } from '../format.js'
+import { EQUIPMENT_ORDER, errorMessage } from '../format.js'
 import { prHistory } from '../stats.js'
+
+const current = (g) => g.records[g.records.length - 1]
+const byName = (a, b) => a.name.localeCompare(b.name)
+const equipmentRank = (g) => {
+  const i = EQUIPMENT_ORDER.indexOf(g.equipment)
+  return i === -1 ? EQUIPMENT_ORDER.length : i
+}
+
+// Row orders within each split section. Every one falls back to name (then
+// resistance) so ties read predictably.
+const SORTS = {
+  resistance: {
+    label: 'Resistance',
+    compare: (a, b) => equipmentRank(a) - equipmentRank(b) || byName(a, b),
+  },
+  name: {
+    label: 'Name (A–Z)',
+    compare: (a, b) => byName(a, b) || equipmentRank(a) - equipmentRank(b),
+  },
+  // lb-normalized, so a kg PR and an lb PR rank on the same scale.
+  weight: {
+    label: 'Heaviest PR',
+    compare: (a, b) => current(b).lb - current(a).lb || byName(a, b),
+  },
+  recent: {
+    label: 'Most recent PR',
+    compare: (a, b) => current(b).date.localeCompare(current(a).date) || byName(a, b),
+  },
+}
 
 // Every lift's all-time PR, per resistance, with the full log of how it got
 // there. Same single /workouts/ fetch as the home page; the history is derived
@@ -17,6 +46,7 @@ export default function Records() {
   const [workouts, setWorkouts] = useState(null)
   const [error, setError] = useState(null)
   const [query, setQuery] = useState('')
+  const [sort, setSort] = useState('resistance')
   const [collapsed, setCollapsed] = useState(() => new Set()) // splits
   const [expanded, setExpanded] = useState(() => new Set()) // group keys
 
@@ -26,7 +56,8 @@ export default function Records() {
 
   const groups = useMemo(() => (workouts ? prHistory(workouts) : []), [workouts])
 
-  // prHistory already sorts by split, so sections fall out in order.
+  // prHistory already sorts by split, so sections fall out in order; rows are
+  // then ordered within each section.
   const sections = useMemo(() => {
     const q = query.trim().toLowerCase()
     const bySplit = new Map()
@@ -36,8 +67,9 @@ export default function Records() {
       if (!bySplit.has(split)) bySplit.set(split, [])
       bySplit.get(split).push(g)
     }
+    for (const rows of bySplit.values()) rows.sort(SORTS[sort].compare)
     return [...bySplit]
-  }, [groups, query])
+  }, [groups, query, sort])
 
   const toggle = (setter, key) =>
     setter((prev) => {
@@ -64,12 +96,21 @@ export default function Records() {
             <span className="muted small">
               Heaviest set per lift and resistance. A new entry is logged each time you beat it.
             </span>
-            <input
-              type="search"
-              placeholder="Filter exercises"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
+            <div className="row" style={{ gap: 8 }}>
+              <input
+                type="search"
+                placeholder="Filter exercises"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+              <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort records">
+                {Object.entries(SORTS).map(([key, { label }]) => (
+                  <option key={key} value={key}>
+                    Sort: {label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {sections.length === 0 && <div className="empty">No exercises match “{query}”.</div>}
@@ -119,7 +160,7 @@ function Chevron({ open }) {
 }
 
 function RecordRow({ group, unit, isExpanded, onToggle }) {
-  const current = group.records[group.records.length - 1]
+  const best = current(group)
   const count = group.records.length
 
   return (
@@ -132,21 +173,21 @@ function RecordRow({ group, unit, isExpanded, onToggle }) {
             <ResistanceTag equipment={group.equipment} />
           </button>
           <div className="muted small rec-sub">
-            set <Link to={`/workouts/${current.workoutId}`}>{current.date}</Link> · {count}{' '}
+            set <Link to={`/workouts/${best.workoutId}`}>{best.date}</Link> · {count}{' '}
             {count === 1 ? 'record' : 'records'}
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
           <div className="pr-value">
-            {current.weight} {current.weightUnit}
-            {current.bodyweight && (
+            {best.weight} {best.weightUnit}
+            {best.bodyweight && (
               <span className="muted small" title="Your bodyweight on that day, plus any added weight">
                 {' '}incl. BW
               </span>
             )}
           </div>
           <div className="muted small">
-            × {current.reps} {current.reps === 1 ? 'rep' : 'reps'}
+            × {best.reps} {best.reps === 1 ? 'rep' : 'reps'}
           </div>
         </div>
       </div>
