@@ -500,12 +500,25 @@ th { color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--borde
 .rec-section-toggle { width: 100%; margin-bottom: 4px; }
 .rec-section-toggle:hover .pill { filter: brightness(1.25); }
 .rec-toggle:hover span:not(.res-tag) { text-decoration: underline; }
-.rec-caret { width: 10px; color: var(--muted); font-size: 12px; }
-.rec-sub { margin: 4px 0 0 18px; }
+.rec-chevron {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.15s ease;
+}
+.rec-chevron.open { transform: rotate(180deg); }
+.rec-section-toggle:hover .rec-chevron,
+.rec-toggle:hover .rec-chevron { stroke: var(--text); }
+.rec-sub { margin: 4px 0 0 24px; }
 .rec-row { border-bottom: 1px solid var(--border); }
 .rec-row:last-child { border-bottom: none; }
 .rec-row .pr-row { border-bottom: none; padding-bottom: 12px; }
-.rec-detail { padding: 0 0 14px 18px; }
+.rec-detail { padding: 0 0 14px 24px; }
 
 .rec-history { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
 .rec-history th {
@@ -517,6 +530,7 @@ th { color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--borde
 .rec-history th, .rec-history td { padding: 5px 8px; }
 .rec-history .bd-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .rec-history .pr-gain { margin-top: 0; }
+.rec-pct { font-weight: 400; }
 
 /* PR progression chart. Single series in the accent; grid and axis text stay
    recessive so only the step line reads loud. */

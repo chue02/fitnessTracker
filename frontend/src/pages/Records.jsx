@@ -83,7 +83,7 @@ export default function Records() {
                   aria-expanded={!isCollapsed}
                   onClick={() => toggle(setCollapsed, split)}
                 >
-                  <span className="rec-caret">{isCollapsed ? '▸' : '▾'}</span>
+                  <Chevron open={!isCollapsed} />
                   <span className={`pill ${split}`}>{split}</span>
                   <span className="muted small">
                     {rows.length} {rows.length === 1 ? 'lift' : 'lifts'}
@@ -109,6 +109,15 @@ export default function Records() {
   )
 }
 
+// A down-pointing dropdown arrow that flips up while its content is open.
+function Chevron({ open }) {
+  return (
+    <svg className={`rec-chevron${open ? ' open' : ''}`} viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M4 6l4 4 4-4" />
+    </svg>
+  )
+}
+
 function RecordRow({ group, unit, isExpanded, onToggle }) {
   const current = group.records[group.records.length - 1]
   const count = group.records.length
@@ -118,7 +127,7 @@ function RecordRow({ group, unit, isExpanded, onToggle }) {
       <div className="pr-row">
         <div>
           <button className="rec-toggle" aria-expanded={isExpanded} onClick={onToggle}>
-            <span className="rec-caret">{isExpanded ? '▾' : '▸'}</span>
+            <Chevron open={isExpanded} />
             <span style={{ fontWeight: 600 }}>{group.name}</span>
             <ResistanceTag equipment={group.equipment} />
           </button>
@@ -170,7 +179,8 @@ function RecordRow({ group, unit, isExpanded, onToggle }) {
                       <span className="muted">first logged</span>
                     ) : (
                       <span className="pr-gain">
-                        +{r.gain} {r.weightUnit}
+                        +{r.gain} {r.weightUnit}{' '}
+                        <span className="rec-pct">(+{r.gainPct}%)</span>
                       </span>
                     )}
                   </td>

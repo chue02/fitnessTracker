@@ -217,6 +217,9 @@ export function prHistory(workouts) {
         gain: prev
           ? Math.round((lb - prev.lb) * (e.weight_unit === 'kg' ? 1 / LB_PER_KG : 1) * 10) / 10
           : null,
+        // Relative to the previous best, on lb-normalized loads so it holds
+        // across a unit switch. One decimal.
+        gainPct: prev && prev.lb > 0 ? Math.round(((lb - prev.lb) / prev.lb) * 1000) / 10 : null,
         previousWeight: prev ? prev.weight : null,
         previousUnit: prev ? prev.weightUnit : null,
       })
