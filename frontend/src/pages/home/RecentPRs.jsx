@@ -14,7 +14,7 @@ export default function RecentPRs({ workouts, limit = 5 }) {
     <div className="card">
       <div className="row between">
         <h2 style={{ margin: 0 }}>Recent PRs</h2>
-        <span className="muted small">Newest first</span>
+        <Link to="/records" className="small">View all →</Link>
       </div>
 
       {records.length === 0 ? (
