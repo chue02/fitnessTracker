@@ -308,6 +308,53 @@ class UserProfile(models.Model):
         return f"Profile of {self.user}"
 
 
+class FavoriteExercise(models.Model):
+    """An exercise the user pinned to track its PR on the home screen.
+
+    For a lift it's the exercise plus an optional resistance, like a template
+    slot: with one, the PR is for that variant; blank means the best on any.
+    For cardio it's the exercise plus an optional minimum distance: its fastest
+    pace only counts sessions at least that long, so a short sprint can't hold
+    the record for a long run. The same exercise can be pinned more than once
+    with different variants (e.g. runs of 5 km+ and of 10 km+)."""
+
+    MAX_PER_USER = 5
+
+    profile = models.ForeignKey(
+        UserProfile, on_delete=models.CASCADE, related_name="favorites"
+    )
+    # CASCADE rather than PROTECT: deleting a custom exercise just unpins it.
+    exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, related_name="+")
+    # Strength only.
+    equipment = models.CharField(
+        max_length=16, choices=WorkoutEntry.Equipment.choices, blank=True
+    )
+    # Cardio only; null means sessions of any distance count.
+    min_distance = models.DecimalField(
+        max_digits=6, decimal_places=2, null=True, blank=True
+    )
+    min_distance_unit = models.CharField(
+        max_length=2,
+        choices=WorkoutEntry.DistanceUnit.choices,
+        default=WorkoutEntry.DistanceUnit.MI,
+    )
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "id"]
+        # NULL min_distances never collide in the database, so duplicates of an
+        # "any distance" favorite are caught by the profile serializer instead.
+        constraints = [
+            models.UniqueConstraint(
+                fields=["profile", "exercise", "equipment", "min_distance", "min_distance_unit"],
+                name="unique_favorite_per_profile",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.exercise.name} (favorite of {self.profile.user})"
+
+
 class WorkoutTemplate(models.Model):
     """A reusable workout skeleton: an ordered list of exercises and nothing
     else. Sets, reps and weight are deliberately not stored — they're entered

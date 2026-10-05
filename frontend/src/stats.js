@@ -137,49 +137,6 @@ export function weekTotals(days) {
   return summarizeWorkouts(days.flatMap((d) => d.workouts))
 }
 
-// The user's de facto favorite lifts: the strength exercises they log the most
-// sets of. Ties break toward the more recently trained, then by name so the
-// order is stable across renders.
-export function topExercises(workouts, limit = 4) {
-  const byExercise = new Map()
-  for (const w of workouts) {
-    for (const e of w.entries) {
-      if (e.exercise_category !== 'strength') continue
-      // Resistance is part of the lift's identity: a barbell chest press and a
-      // machine chest press are different movements with different records, and
-      // pooling them lets the easier one shadow the real best.
-      const equipment = e.equipment || ''
-      const key = `${e.exercise}::${equipment}`
-      let row = byExercise.get(key)
-      if (!row) {
-        row = {
-          key,
-          id: e.exercise,
-          equipment,
-          name: e.exercise_name,
-          muscleGroup: e.exercise_muscle_group,
-          split: e.exercise_split,
-          secondaryMuscles: e.exercise_secondary_muscles,
-          setCount: 0,
-          lastDate: w.date,
-        }
-        byExercise.set(key, row)
-      }
-      row.setCount += 1
-      if (w.date > row.lastDate) row.lastDate = w.date
-    }
-  }
-
-  return [...byExercise.values()]
-    .sort(
-      (a, b) =>
-        b.setCount - a.setCount ||
-        b.lastDate.localeCompare(a.lastDate) ||
-        a.name.localeCompare(b.name),
-    )
-    .slice(0, limit)
-}
-
 // The most recent times a lift beat its own previous best, newest first.
 //
 // A first-ever logged set is NOT a record here: with nothing to compare against
@@ -265,6 +222,8 @@ export function personalRecord(workouts, exerciseId, equipment = null) {
           weightUnit: e.weight_unit,
           reps: e.reps,
           bodyweight: isBodyweightSet(e),
+          // Which resistance it was set on — informative when `equipment` was omitted.
+          equipment: e.equipment || '',
           date: w.date,
           workoutId: w.id,
         }
@@ -272,6 +231,65 @@ export function personalRecord(workouts, exerciseId, equipment = null) {
     }
   }
   return best
+}
+
+// A logged distance in `unit` ('mi' or 'km'); null when missing or unparsable.
+export function distanceIn(distance, fromUnit, unit) {
+  if (distance == null) return null
+  const n = Number(distance)
+  if (!Number.isFinite(n)) return null
+  if (fromUnit === unit) return n
+  return unit === 'mi' ? n * MI_PER_KM : n / MI_PER_KM
+}
+
+// Bests for one cardio exercise: fastest pace, farthest distance, longest time.
+//
+// Records are per SESSION: every segment of the exercise in one workout is
+// summed, so a run logged as mile splits counts as one run and short intervals
+// don't pass for race pace. Pace only uses segments with both a distance and a
+// time. Each record is null if nothing logged supports it; ties go to the
+// first date it was hit, as with personalRecord.
+//
+// `minDistance` (in `unit`) limits the pace record to sessions at least that
+// long, e.g. 5 for "fastest 5 km+". It allows 0.5% of slack so a 5K logged as
+// 3.1 mi still counts as 5 km. Farthest and longest ignore it.
+export function cardioRecords(workouts, exerciseId, unit = 'mi', minDistance = 0) {
+  const qualifies = (distance) => distance >= minDistance * 0.995
+  let fastest = null
+  let farthest = null
+  let longest = null
+  const beats = (best, value, date, lowerIsBetter = false) =>
+    !best ||
+    (lowerIsBetter ? value < best.value : value > best.value) ||
+    (value === best.value && date < best.date)
+
+  for (const w of workouts) {
+    let distance = 0
+    let seconds = 0
+    let pacedDistance = 0
+    let pacedSeconds = 0
+    for (const e of w.entries) {
+      if (e.exercise !== exerciseId || e.exercise_category !== 'cardio') continue
+      const d = distanceIn(e.distance, e.distance_unit, unit)
+      const s = e.duration_seconds
+      if (d != null) distance += d
+      if (s != null) seconds += s
+      if (d > 0 && s > 0) {
+        pacedDistance += d
+        pacedSeconds += s
+      }
+    }
+
+    const at = { date: w.date, workoutId: w.id }
+    if (pacedDistance > 0 && qualifies(pacedDistance)) {
+      const pace = pacedSeconds / pacedDistance // seconds per unit
+      if (beats(fastest, pace, w.date, true)) fastest = { value: pace, distance: pacedDistance, ...at }
+    }
+    if (distance > 0 && beats(farthest, distance, w.date)) farthest = { value: distance, ...at }
+    if (seconds > 0 && beats(longest, seconds, w.date)) longest = { value: seconds, ...at }
+  }
+
+  return { unit, fastest, farthest, longest }
 }
 
 // --- Training habits ---
