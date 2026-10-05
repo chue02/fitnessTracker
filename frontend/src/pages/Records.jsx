@@ -4,7 +4,7 @@ import { api } from '../api.js'
 import { useAuth } from '../auth.jsx'
 import PrChart from '../components/PrChart.jsx'
 import ResistanceTag from '../components/ResistanceTag.jsx'
-import { EQUIPMENT_ORDER, errorMessage } from '../format.js'
+import { EQUIPMENT_ORDER, errorMessage, MUSCLE_ORDER } from '../format.js'
 import { prHistory } from '../stats.js'
 
 const current = (g) => g.records[g.records.length - 1]
@@ -46,6 +46,7 @@ export default function Records() {
   const [workouts, setWorkouts] = useState(null)
   const [error, setError] = useState(null)
   const [query, setQuery] = useState('')
+  const [muscle, setMuscle] = useState('') // primary muscle; '' = all
   const [sort, setSort] = useState('resistance')
   const [collapsed, setCollapsed] = useState(() => new Set()) // splits
   const [expanded, setExpanded] = useState(() => new Set()) // group keys
@@ -56,6 +57,14 @@ export default function Records() {
 
   const groups = useMemo(() => (workouts ? prHistory(workouts) : []), [workouts])
 
+  // Only muscles that actually have a record, in the Exercises page's order,
+  // so no choice leads to an empty page.
+  const muscleOptions = useMemo(() => {
+    const present = new Set(groups.map((g) => g.muscleGroup).filter(Boolean))
+    const rank = (m) => (MUSCLE_ORDER.includes(m) ? MUSCLE_ORDER.indexOf(m) : MUSCLE_ORDER.length)
+    return [...present].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))
+  }, [groups])
+
   // prHistory already sorts by split, so sections fall out in order; rows are
   // then ordered within each section.
   const sections = useMemo(() => {
@@ -63,13 +72,14 @@ export default function Records() {
     const bySplit = new Map()
     for (const g of groups) {
       if (q && !g.name.toLowerCase().includes(q)) continue
+      if (muscle && g.muscleGroup !== muscle) continue
       const split = g.split || 'other'
       if (!bySplit.has(split)) bySplit.set(split, [])
       bySplit.get(split).push(g)
     }
     for (const rows of bySplit.values()) rows.sort(SORTS[sort].compare)
     return [...bySplit]
-  }, [groups, query, sort])
+  }, [groups, query, muscle, sort])
 
   const toggle = (setter, key) =>
     setter((prev) => {
@@ -99,10 +109,18 @@ export default function Records() {
             <div className="row" style={{ gap: 8 }}>
               <input
                 type="search"
-                placeholder="Filter exercises"
+                placeholder="Search exercises"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
+              <select value={muscle} onChange={(e) => setMuscle(e.target.value)} aria-label="Filter by muscle">
+                <option value="">All muscles</option>
+                {muscleOptions.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
               <select value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort records">
                 {Object.entries(SORTS).map(([key, { label }]) => (
                   <option key={key} value={key}>
@@ -113,7 +131,7 @@ export default function Records() {
             </div>
           </div>
 
-          {sections.length === 0 && <div className="empty">No exercises match “{query}”.</div>}
+          {sections.length === 0 && <div className="empty">No records match these filters.</div>}
 
           {sections.map(([split, rows]) => {
             const isCollapsed = collapsed.has(split)
