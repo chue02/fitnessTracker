@@ -5,7 +5,7 @@ import { useAuth } from '../auth.jsx'
 import PrChart from '../components/PrChart.jsx'
 import ResistanceTag from '../components/ResistanceTag.jsx'
 import { EQUIPMENT_ORDER, errorMessage, formatDuration, lbToKg, MUSCLE_ORDER, round } from '../format.js'
-import { cardioHistory, prHistory } from '../stats.js'
+import { cardioHistory, distanceIn, paceHistory, prHistory } from '../stats.js'
 
 const last = (log) => (log.length ? log[log.length - 1] : null)
 const current = (g) => last(g.records)
@@ -287,6 +287,29 @@ function RecordRow({ group, unit, isExpanded, onToggle }) {
 
 const round2 = (n) => Math.round(n * 100) / 100
 
+// A cardio exercise's minimum distance for pace PRs. Kept in this browser,
+// per exercise, with the unit it was entered in so a unit switch converts it.
+const minDistanceKey = (exerciseId) => `records.minDistance.${exerciseId}`
+
+function loadMinDistance(exerciseId, unit) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(minDistanceKey(exerciseId)))
+    return saved?.value > 0 ? String(round2(distanceIn(saved.value, saved.unit, unit))) : ''
+  } catch {
+    return ''
+  }
+}
+
+function saveMinDistance(exerciseId, value, unit) {
+  try {
+    if (value > 0) localStorage.setItem(minDistanceKey(exerciseId), JSON.stringify({ value, unit }))
+    else localStorage.removeItem(minDistanceKey(exerciseId))
+  } catch {
+    // Storage unavailable (private window, blocked site data): the filter
+    // still works, it just won't be remembered.
+  }
+}
+
 // Cardio's three logs. Pace leads, as on the favorites card.
 const CARDIO_METRICS = [
   { key: 'pace', label: 'Pace', context: 'Distance', time: true, lowerIsBetter: true },
@@ -297,15 +320,31 @@ const CARDIO_METRICS = [
 // Cardio has no single "heaviest", so the row carries three bests, laid out
 // like the favorites card: pace is the headline, labeled with the distance it
 // was held over so a short effort can't pass for a long one; farthest and
-// longest sit underneath. Expanded, a toggle picks which log to show.
+// longest sit underneath. Expanded, a toggle picks which log to show. A minimum
+// distance (e.g. "5 mi+") limits the pace record to sessions at least that
+// long; farthest and longest ignore it, as on the favorites card.
 function CardioRecordRow({ group, isExpanded, onToggle }) {
   const { unit } = group
-  const metrics = CARDIO_METRICS.filter((m) => group[m.key].length > 0)
+  const [minText, setMinText] = useState(() => loadMinDistance(group.exerciseId, unit))
+  const min = Number(minText) > 0 ? Number(minText) : 0
+  const pace = useMemo(() => paceHistory(group.sessions, min), [group.sessions, min])
+
+  // Pace stays offered while any session has one, so a minimum that rules
+  // them all out can still be lowered.
+  const logs = { pace, distance: group.distance, time: group.time }
+  const metrics = CARDIO_METRICS.filter((m) =>
+    m.key === 'pace' ? group.sessions.length > 0 : group[m.key].length > 0,
+  )
   const [metricKey, setMetricKey] = useState(metrics[0].key)
   const metric = CARDIO_METRICS.find((m) => m.key === metricKey)
-  const log = group[metric.key]
+  const log = logs[metric.key]
 
-  const fastest = last(group.pace)
+  const changeMin = (text) => {
+    setMinText(text)
+    saveMinDistance(group.exerciseId, Number(text), unit)
+  }
+
+  const fastest = last(pace)
   const farthest = last(group.distance)
   const longest = last(group.time)
 
@@ -334,6 +373,11 @@ function CardioRecordRow({ group, isExpanded, onToggle }) {
           <button className="rec-toggle" aria-expanded={isExpanded} onClick={onToggle}>
             <Chevron open={isExpanded} />
             <span style={{ fontWeight: 600 }}>{group.name}</span>
+            {min > 0 && (
+              <span className="res-tag" title="Fastest pace only counts sessions at least this long">
+                {min} {unit}+
+              </span>
+            )}
           </button>
           <div className="muted small rec-sub">
             {others.map((o, i) => (
@@ -359,7 +403,14 @@ function CardioRecordRow({ group, isExpanded, onToggle }) {
               </Link>
             </>
           ) : (
-            <div className="muted" title="Log a distance and a time to get a pace">
+            <div
+              className="muted"
+              title={
+                min > 0
+                  ? `No session of ${min} ${unit} or more with a time yet`
+                  : 'Log a distance and a time to get a pace'
+              }
+            >
               —
             </div>
           )}
@@ -368,18 +419,33 @@ function CardioRecordRow({ group, isExpanded, onToggle }) {
 
       {isExpanded && (
         <div className="rec-detail">
-          {metrics.length > 1 && (
+          {(metrics.length > 1 || metric.key === 'pace') && (
             <div className="row rec-metrics">
-              {metrics.map((m) => (
-                <button
-                  key={m.key}
-                  className={'btn small ' + (m.key === metric.key ? '' : 'ghost')}
-                  aria-pressed={m.key === metric.key}
-                  onClick={() => setMetricKey(m.key)}
-                >
-                  {m.label}
-                </button>
-              ))}
+              {metrics.length > 1 &&
+                metrics.map((m) => (
+                  <button
+                    key={m.key}
+                    className={'btn small ' + (m.key === metric.key ? '' : 'ghost')}
+                    aria-pressed={m.key === metric.key}
+                    onClick={() => setMetricKey(m.key)}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              {metric.key === 'pace' && (
+                <label className="rec-min small">
+                  Min distance
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    placeholder="any"
+                    value={minText}
+                    onChange={(e) => changeMin(e.target.value)}
+                  />
+                  {unit}
+                </label>
+              )}
             </div>
           )}
           {log.length > 1 && (
@@ -394,34 +460,40 @@ function CardioRecordRow({ group, isExpanded, onToggle }) {
               }))}
             />
           )}
-          <table className="rec-history">
-            <thead>
-              <tr>
-                <th scope="col">Date</th>
-                <th scope="col" className="bd-num">{metric.label}</th>
-                <th scope="col" className="bd-num">{metric.context}</th>
-                <th scope="col" className="bd-num">Change</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...log].reverse().map((r) => (
-                <tr key={`${r.date}-${r.workoutId}`}>
-                  <td>
-                    <Link to={`/workouts/${r.workoutId}`}>{r.date}</Link>
-                  </td>
-                  <td className="bd-num">{show[metric.key](r.value)}</td>
-                  <td className="bd-num">{context(r)}</td>
-                  <td className="bd-num">
-                    {r.initial ? (
-                      <span className="muted">first logged</span>
-                    ) : (
-                      <span className="pr-gain">{change(r)}</span>
-                    )}
-                  </td>
+          {log.length === 0 ? (
+            <div className="muted small">
+              No session of {min} {unit} or more with a time yet.
+            </div>
+          ) : (
+            <table className="rec-history">
+              <thead>
+                <tr>
+                  <th scope="col">Date</th>
+                  <th scope="col" className="bd-num">{metric.label}</th>
+                  <th scope="col" className="bd-num">{metric.context}</th>
+                  <th scope="col" className="bd-num">Change</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {[...log].reverse().map((r) => (
+                  <tr key={`${r.date}-${r.workoutId}`}>
+                    <td>
+                      <Link to={`/workouts/${r.workoutId}`}>{r.date}</Link>
+                    </td>
+                    <td className="bd-num">{show[metric.key](r.value)}</td>
+                    <td className="bd-num">{context(r)}</td>
+                    <td className="bd-num">
+                      {r.initial ? (
+                        <span className="muted">first logged</span>
+                      ) : (
+                        <span className="pr-gain">{change(r)}</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
     </div>

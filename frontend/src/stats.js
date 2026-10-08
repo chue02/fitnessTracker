@@ -335,6 +335,35 @@ function cardioSession(workout, exerciseId, unit) {
   return found ? { distance, seconds, pacedDistance, pacedSeconds } : null
 }
 
+// Append `value` to a PR log if it beats the last entry, compared at
+// `precision` (100 = hundredths) so an entry never reads the same as the one
+// before it. The first value is the baseline.
+function logRecord(log, value, at, lowerIsBetter, precision) {
+  const prev = log[log.length - 1]
+  const r = (v) => Math.round(v * precision)
+  if (prev && (lowerIsBetter ? r(value) >= r(prev.value) : r(value) <= r(prev.value))) return
+  const change = prev ? Math.abs(r(value) - r(prev.value)) / precision : null
+  log.push({
+    value,
+    ...at,
+    initial: !prev,
+    change,
+    changePct: prev ? Math.round((change / prev.value) * 1000) / 10 : null,
+  })
+}
+
+// The fastest-pace log from a cardioHistory group's `sessions`, counting only
+// sessions of at least `minDistance` (same unit; 0 = any). Same 0.5% slack as
+// cardioRecords, so a 5K logged as 3.1 mi still counts as 5 km.
+export function paceHistory(sessions, minDistance = 0) {
+  const log = []
+  for (const s of sessions) {
+    if (s.distance < minDistance * 0.995) continue
+    logRecord(log, s.seconds / s.distance, s, true, 1)
+  }
+  return log
+}
+
 // Every cardio PR ever set, per exercise: three separate logs for fastest pace,
 // farthest distance and longest time, oldest first. Sessions are totaled as in
 // cardioRecords, and records follow the same rules as prHistory: the first
@@ -345,6 +374,9 @@ function cardioSession(workout, exerciseId, unit) {
 // Each record: { value, date, workoutId, initial, change, changePct, distance,
 // seconds } — `change` is the improvement over the previous record (seconds
 // faster for pace), and distance/seconds give the session's context.
+//
+// `pace` counts sessions of any length. Each group also carries its paced
+// `sessions`, so paceHistory can rebuild the pace log for a minimum distance.
 export function cardioHistory(workouts, unit = 'mi') {
   const ordered = [...workouts].sort(
     (a, b) =>
@@ -354,19 +386,6 @@ export function cardioHistory(workouts, unit = 'mi') {
   )
 
   const groups = new Map() // exercise id -> group
-  const push = (log, value, at, lowerIsBetter, precision) => {
-    const prev = log[log.length - 1]
-    const r = (v) => Math.round(v * precision)
-    if (prev && (lowerIsBetter ? r(value) >= r(prev.value) : r(value) <= r(prev.value))) return
-    const change = prev ? Math.abs(r(value) - r(prev.value)) / precision : null
-    log.push({
-      value,
-      ...at,
-      initial: !prev,
-      change,
-      changePct: prev ? Math.round((change / prev.value) * 1000) / 10 : null,
-    })
-  }
 
   for (const w of ordered) {
     const seen = new Set()
@@ -385,6 +404,7 @@ export function cardioHistory(workouts, unit = 'mi') {
           split: 'cardio',
           muscleGroup: e.exercise_muscle_group,
           unit,
+          sessions: [], // ones with a pace, oldest first
           pace: [],
           distance: [],
           time: [],
@@ -393,13 +413,13 @@ export function cardioHistory(workouts, unit = 'mi') {
       }
 
       const at = { date: w.date, workoutId: w.id }
-      if (pacedDistance > 0) {
-        push(group.pace, pacedSeconds / pacedDistance, { ...at, distance: pacedDistance, seconds: pacedSeconds }, true, 1)
-      }
-      if (distance > 0) push(group.distance, distance, { ...at, distance, seconds }, false, 100)
-      if (seconds > 0) push(group.time, seconds, { ...at, distance, seconds }, false, 1)
+      if (pacedDistance > 0) group.sessions.push({ ...at, distance: pacedDistance, seconds: pacedSeconds })
+      if (distance > 0) logRecord(group.distance, distance, { ...at, distance, seconds }, false, 100)
+      if (seconds > 0) logRecord(group.time, seconds, { ...at, distance, seconds }, false, 1)
     }
   }
+
+  for (const g of groups.values()) g.pace = paceHistory(g.sessions)
 
   // A session with neither a distance nor a time sets no record.
   return [...groups.values()]
