@@ -4,10 +4,19 @@ import { api } from '../api.js'
 import { useAuth } from '../auth.jsx'
 import PrChart from '../components/PrChart.jsx'
 import ResistanceTag from '../components/ResistanceTag.jsx'
-import { EQUIPMENT_ORDER, errorMessage, MUSCLE_ORDER } from '../format.js'
-import { prHistory } from '../stats.js'
+import { EQUIPMENT_ORDER, errorMessage, formatDuration, lbToKg, MUSCLE_ORDER, round } from '../format.js'
+import { cardioHistory, prHistory } from '../stats.js'
 
-const current = (g) => g.records[g.records.length - 1]
+const last = (log) => (log.length ? log[log.length - 1] : null)
+const current = (g) => last(g.records)
+const isCardio = (g) => g.kind === 'cardio'
+// Cardio has no load; inside its own section the weight sort falls back to name.
+const heaviest = (g) => (isCardio(g) ? 0 : current(g).lb)
+// The date of a group's newest PR — for cardio, of any of its three logs.
+const latestPr = (g) =>
+  isCardio(g)
+    ? [g.pace, g.distance, g.time].reduce((d, log) => (last(log)?.date > d ? last(log).date : d), '')
+    : current(g).date
 const byName = (a, b) => a.name.localeCompare(b.name)
 const equipmentRank = (g) => {
   const i = EQUIPMENT_ORDER.indexOf(g.equipment)
@@ -28,21 +37,23 @@ const SORTS = {
   // lb-normalized, so a kg PR and an lb PR rank on the same scale.
   weight: {
     label: 'Heaviest PR',
-    compare: (a, b) => current(b).lb - current(a).lb || byName(a, b),
+    compare: (a, b) => heaviest(b) - heaviest(a) || byName(a, b),
   },
   recent: {
     label: 'Most recent PR',
-    compare: (a, b) => current(b).date.localeCompare(current(a).date) || byName(a, b),
+    compare: (a, b) => latestPr(b).localeCompare(latestPr(a)) || byName(a, b),
   },
 }
 
-// Every lift's all-time PR, per resistance, with the full log of how it got
-// there. Same single /workouts/ fetch as the home page; the history is derived
+// Every lift's all-time PR, per resistance, and every cardio exercise's pace,
+// distance and time bests, each with the full log of how it got there. Same single /workouts/ fetch as the home page; the history is derived
 // from it rather than stored, so editing or deleting a workout is reflected
 // immediately.
 export default function Records() {
   const { user } = useAuth()
   const unit = user.profile?.weight_unit === 'kg' ? 'kg' : 'lb'
+  // Cardio distances follow the unit preference: lb pairs with mi, kg with km.
+  const distanceUnit = unit === 'kg' ? 'km' : 'mi'
   const [workouts, setWorkouts] = useState(null)
   const [error, setError] = useState(null)
   const [query, setQuery] = useState('')
@@ -55,7 +66,11 @@ export default function Records() {
     api.get('/workouts/').then(setWorkouts).catch((e) => setError(errorMessage(e)))
   }, [])
 
-  const groups = useMemo(() => (workouts ? prHistory(workouts) : []), [workouts])
+  // Lifts in split order, then one cardio section at the end.
+  const groups = useMemo(
+    () => (workouts ? [...prHistory(workouts), ...cardioHistory(workouts, distanceUnit)] : []),
+    [workouts, distanceUnit],
+  )
 
   // Only muscles that actually have a record, in the Exercises page's order,
   // so no choice leads to an empty page.
@@ -98,13 +113,14 @@ export default function Records() {
 
       {groups.length === 0 ? (
         <div className="empty">
-          No strength sets logged yet. <Link to="/workouts/new">Log a workout →</Link>
+          No lifts or cardio logged yet. <Link to="/workouts/new">Log a workout →</Link>
         </div>
       ) : (
         <>
           <div className="row between" style={{ marginBottom: 14 }}>
             <span className="muted small">
-              Heaviest set per lift and resistance. A new entry is logged each time you beat it.
+              Heaviest set per lift and resistance; fastest pace, farthest and longest for cardio. A
+              new entry is logged each time you beat one.
             </span>
             <div className="row" style={{ gap: 8 }}>
               <input
@@ -145,20 +161,26 @@ export default function Records() {
                   <Chevron open={!isCollapsed} />
                   <span className={`pill ${split}`}>{split}</span>
                   <span className="muted small">
-                    {rows.length} {rows.length === 1 ? 'lift' : 'lifts'}
+                    {rows.length}{' '}
+                    {split === 'cardio'
+                      ? rows.length === 1 ? 'exercise' : 'exercises'
+                      : rows.length === 1 ? 'lift' : 'lifts'}
                   </span>
                 </button>
 
                 {!isCollapsed &&
-                  rows.map((g) => (
-                    <RecordRow
-                      key={g.key}
-                      group={g}
-                      unit={unit}
-                      isExpanded={expanded.has(g.key)}
-                      onToggle={() => toggle(setExpanded, g.key)}
-                    />
-                  ))}
+                  rows.map((g) => {
+                    const Row = isCardio(g) ? CardioRecordRow : RecordRow
+                    return (
+                      <Row
+                        key={g.key}
+                        group={g}
+                        unit={unit}
+                        isExpanded={expanded.has(g.key)}
+                        onToggle={() => toggle(setExpanded, g.key)}
+                      />
+                    )
+                  })}
               </div>
             )
           })}
@@ -213,7 +235,17 @@ function RecordRow({ group, unit, isExpanded, onToggle }) {
       {isExpanded && (
         <div className="rec-detail">
           {/* One record is a flat line — the table says it better. */}
-          {count > 1 && <PrChart records={group.records} unit={unit} />}
+          {count > 1 && (
+            <PrChart
+              label={`Weight (${unit})`}
+              // lb-normalized, since records can mix units, then shown in the user's.
+              points={group.records.map((r) => ({
+                date: r.date,
+                value: unit === 'kg' ? lbToKg(r.lb) : round(r.lb, 1),
+                tip: `${r.weight} ${r.weightUnit} × ${r.reps}`,
+              }))}
+            />
+          )}
           <table className="rec-history">
             <thead>
               <tr>
@@ -241,6 +273,149 @@ function RecordRow({ group, unit, isExpanded, onToggle }) {
                         +{r.gain} {r.weightUnit}{' '}
                         <span className="rec-pct">(+{r.gainPct}%)</span>
                       </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const round2 = (n) => Math.round(n * 100) / 100
+
+// Cardio's three logs. Pace leads, as on the favorites card.
+const CARDIO_METRICS = [
+  { key: 'pace', label: 'Pace', context: 'Distance', time: true, lowerIsBetter: true },
+  { key: 'distance', label: 'Distance', context: 'Time' },
+  { key: 'time', label: 'Time', context: 'Distance', time: true },
+]
+
+// Cardio has no single "heaviest", so the row carries three bests, laid out
+// like the favorites card: pace is the headline, labeled with the distance it
+// was held over so a short effort can't pass for a long one; farthest and
+// longest sit underneath. Expanded, a toggle picks which log to show.
+function CardioRecordRow({ group, isExpanded, onToggle }) {
+  const { unit } = group
+  const metrics = CARDIO_METRICS.filter((m) => group[m.key].length > 0)
+  const [metricKey, setMetricKey] = useState(metrics[0].key)
+  const metric = CARDIO_METRICS.find((m) => m.key === metricKey)
+  const log = group[metric.key]
+
+  const fastest = last(group.pace)
+  const farthest = last(group.distance)
+  const longest = last(group.time)
+
+  const distance = (d) => (d > 0 ? `${round2(d)} ${unit}` : '—')
+  const duration = (s) => (s > 0 ? formatDuration(Math.round(s)) : '—')
+  const show = {
+    pace: (v) => `${formatDuration(Math.round(v))} /${unit}`,
+    distance,
+    time: duration,
+  }
+  const context = (r) => (metric.key === 'distance' ? duration(r.seconds) : distance(r.distance))
+  const change = (r) =>
+    metric.key === 'pace'
+      ? `−${formatDuration(r.change)} /${unit} (−${r.changePct}%)`
+      : `+${metric.key === 'distance' ? `${round2(r.change)} ${unit}` : formatDuration(r.change)} (+${r.changePct}%)`
+
+  const others = [
+    farthest && { label: 'farthest', value: distance(farthest.value), rec: farthest },
+    longest && { label: 'longest', value: duration(longest.value), rec: longest },
+  ].filter(Boolean)
+
+  return (
+    <div className="rec-row">
+      <div className="pr-row">
+        <div>
+          <button className="rec-toggle" aria-expanded={isExpanded} onClick={onToggle}>
+            <Chevron open={isExpanded} />
+            <span style={{ fontWeight: 600 }}>{group.name}</span>
+          </button>
+          <div className="muted small rec-sub">
+            {others.map((o, i) => (
+              <span key={o.label}>
+                {i > 0 && ' · '}
+                {o.label}{' '}
+                <Link to={`/workouts/${o.rec.workoutId}`} title={o.rec.date}>
+                  {o.value}
+                </Link>
+              </span>
+            ))}
+          </div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          {fastest ? (
+            <>
+              <div className="pr-value">
+                {show.pace(fastest.value)}
+                <span className="muted small"> over {distance(fastest.distance)}</span>
+              </div>
+              <Link to={`/workouts/${fastest.workoutId}`} className="small">
+                {fastest.date}
+              </Link>
+            </>
+          ) : (
+            <div className="muted" title="Log a distance and a time to get a pace">
+              —
+            </div>
+          )}
+        </div>
+      </div>
+
+      {isExpanded && (
+        <div className="rec-detail">
+          {metrics.length > 1 && (
+            <div className="row rec-metrics">
+              {metrics.map((m) => (
+                <button
+                  key={m.key}
+                  className={'btn small ' + (m.key === metric.key ? '' : 'ghost')}
+                  aria-pressed={m.key === metric.key}
+                  onClick={() => setMetricKey(m.key)}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          )}
+          {log.length > 1 && (
+            <PrChart
+              label={metric.label}
+              time={metric.time}
+              lowerIsBetter={metric.lowerIsBetter}
+              points={log.map((r) => ({
+                date: r.date,
+                value: metric.key === 'distance' ? round2(r.value) : r.value,
+                tip: show[metric.key](r.value),
+              }))}
+            />
+          )}
+          <table className="rec-history">
+            <thead>
+              <tr>
+                <th scope="col">Date</th>
+                <th scope="col" className="bd-num">{metric.label}</th>
+                <th scope="col" className="bd-num">{metric.context}</th>
+                <th scope="col" className="bd-num">Change</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...log].reverse().map((r) => (
+                <tr key={`${r.date}-${r.workoutId}`}>
+                  <td>
+                    <Link to={`/workouts/${r.workoutId}`}>{r.date}</Link>
+                  </td>
+                  <td className="bd-num">{show[metric.key](r.value)}</td>
+                  <td className="bd-num">{context(r)}</td>
+                  <td className="bd-num">
+                    {r.initial ? (
+                      <span className="muted">first logged</span>
+                    ) : (
+                      <span className="pr-gain">{change(r)}</span>
                     )}
                   </td>
                 </tr>

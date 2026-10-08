@@ -311,6 +311,102 @@ export function distanceIn(distance, fromUnit, unit) {
   return unit === 'mi' ? n * MI_PER_KM : n / MI_PER_KM
 }
 
+// One workout's totals for one cardio exercise, in `unit`: every segment
+// summed, plus the distance and time of just the segments that have both (the
+// only ones a pace can come from). Null when the exercise isn't in the workout.
+function cardioSession(workout, exerciseId, unit) {
+  let found = false
+  let distance = 0
+  let seconds = 0
+  let pacedDistance = 0
+  let pacedSeconds = 0
+  for (const e of workout.entries) {
+    if (e.exercise !== exerciseId || e.exercise_category !== 'cardio') continue
+    found = true
+    const d = distanceIn(e.distance, e.distance_unit, unit)
+    const s = e.duration_seconds
+    if (d != null) distance += d
+    if (s != null) seconds += s
+    if (d > 0 && s > 0) {
+      pacedDistance += d
+      pacedSeconds += s
+    }
+  }
+  return found ? { distance, seconds, pacedDistance, pacedSeconds } : null
+}
+
+// Every cardio PR ever set, per exercise: three separate logs for fastest pace,
+// farthest distance and longest time, oldest first. Sessions are totaled as in
+// cardioRecords, and records follow the same rules as prHistory: the first
+// session is the baseline (`initial`), and only a strictly better value logs.
+// "Better" is judged at display precision (whole seconds, hundredths of a
+// distance) so no two log entries read the same.
+//
+// Each record: { value, date, workoutId, initial, change, changePct, distance,
+// seconds } — `change` is the improvement over the previous record (seconds
+// faster for pace), and distance/seconds give the session's context.
+export function cardioHistory(workouts, unit = 'mi') {
+  const ordered = [...workouts].sort(
+    (a, b) =>
+      a.date.localeCompare(b.date) ||
+      String(a.created_at).localeCompare(String(b.created_at)) ||
+      a.id - b.id,
+  )
+
+  const groups = new Map() // exercise id -> group
+  const push = (log, value, at, lowerIsBetter, precision) => {
+    const prev = log[log.length - 1]
+    const r = (v) => Math.round(v * precision)
+    if (prev && (lowerIsBetter ? r(value) >= r(prev.value) : r(value) <= r(prev.value))) return
+    const change = prev ? Math.abs(r(value) - r(prev.value)) / precision : null
+    log.push({
+      value,
+      ...at,
+      initial: !prev,
+      change,
+      changePct: prev ? Math.round((change / prev.value) * 1000) / 10 : null,
+    })
+  }
+
+  for (const w of ordered) {
+    const seen = new Set()
+    for (const e of w.entries) {
+      if (e.exercise_category !== 'cardio' || seen.has(e.exercise)) continue
+      seen.add(e.exercise)
+      const { distance, seconds, pacedDistance, pacedSeconds } = cardioSession(w, e.exercise, unit)
+
+      let group = groups.get(e.exercise)
+      if (!group) {
+        group = {
+          key: `cardio::${e.exercise}`,
+          kind: 'cardio',
+          exerciseId: e.exercise,
+          name: e.exercise_name,
+          split: 'cardio',
+          muscleGroup: e.exercise_muscle_group,
+          unit,
+          pace: [],
+          distance: [],
+          time: [],
+        }
+        groups.set(e.exercise, group)
+      }
+
+      const at = { date: w.date, workoutId: w.id }
+      if (pacedDistance > 0) {
+        push(group.pace, pacedSeconds / pacedDistance, { ...at, distance: pacedDistance, seconds: pacedSeconds }, true, 1)
+      }
+      if (distance > 0) push(group.distance, distance, { ...at, distance, seconds }, false, 100)
+      if (seconds > 0) push(group.time, seconds, { ...at, distance, seconds }, false, 1)
+    }
+  }
+
+  // A session with neither a distance nor a time sets no record.
+  return [...groups.values()]
+    .filter((g) => g.pace.length || g.distance.length || g.time.length)
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
 // Bests for one cardio exercise: fastest pace, farthest distance, longest time.
 //
 // Records are per SESSION: every segment of the exercise in one workout is
@@ -333,21 +429,9 @@ export function cardioRecords(workouts, exerciseId, unit = 'mi', minDistance = 0
     (value === best.value && date < best.date)
 
   for (const w of workouts) {
-    let distance = 0
-    let seconds = 0
-    let pacedDistance = 0
-    let pacedSeconds = 0
-    for (const e of w.entries) {
-      if (e.exercise !== exerciseId || e.exercise_category !== 'cardio') continue
-      const d = distanceIn(e.distance, e.distance_unit, unit)
-      const s = e.duration_seconds
-      if (d != null) distance += d
-      if (s != null) seconds += s
-      if (d > 0 && s > 0) {
-        pacedDistance += d
-        pacedSeconds += s
-      }
-    }
+    const session = cardioSession(w, exerciseId, unit)
+    if (!session) continue
+    const { distance, seconds, pacedDistance, pacedSeconds } = session
 
     const at = { date: w.date, workoutId: w.id }
     if (pacedDistance > 0 && qualifies(pacedDistance)) {

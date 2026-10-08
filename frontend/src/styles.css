@@ -519,6 +519,7 @@ th { color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--borde
 .rec-row:last-child { border-bottom: none; }
 .rec-row .pr-row { border-bottom: none; padding-bottom: 12px; }
 .rec-detail { padding: 0 0 14px 24px; }
+.rec-metrics { gap: 6px; margin-bottom: 6px; }
 
 .rec-history { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
 .rec-history th {
