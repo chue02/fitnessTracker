@@ -11,8 +11,10 @@ can mix both. Browse past workouts in the history view.
 
 - **Backend:** Django 5 + Django REST Framework + django-filter (SQLite for dev)
 - **Frontend:** React 18 + React Router + Vite 4
-- No authentication in v1, but the data model is built to add per-user accounts
-  later without a migration rewrite (nullable `owner` FK already in place).
+- **Auth:** open self-registration with DRF token auth. Every data endpoint
+  requires a token, and each user only sees their own workouts, templates,
+  bodyweight history and custom exercises (the built-in library is shared and
+  read-only).
 
 ## Data model
 
@@ -76,13 +78,20 @@ both at once.
 
 ## API
 
-Base path `/api/`:
+Base path `/api/`. Everything except register and login requires an
+`Authorization: Token <token>` header.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| GET/POST | `/exercises/` | List / create exercises. Filters: `?category=`, `?muscle_group=`, `?is_custom=` |
+| POST | `/auth/register/` | Create an account `{username, password, email?}`; returns `{token, user}` |
+| POST | `/auth/login/` | `{username, password}`; returns `{token, user}` |
+| POST | `/auth/logout/` | Revoke the current token |
+| GET | `/auth/me/` | The signed-in user, with their profile nested |
+| GET/POST | `/exercises/` | List built-in + your custom exercises / create a custom one. Filters: `?category=`, `?muscle_group=`, `?is_custom=` |
 | GET/POST | `/workouts/` | List (newest first) / create a workout with nested `entries` |
 | GET/PATCH/DELETE | `/workouts/{id}/` | Retrieve / update / delete a workout |
+| GET/POST | `/templates/` | List / create a workout template with nested `exercises` |
+| GET/PATCH/DELETE | `/templates/{id}/` | Retrieve / update / delete a template |
 | GET/POST | `/bodyweight/` | Bodyweight history (newest first) / log a `{date, weight_kg}` — replaces that date's entry if one exists |
 | GET/PATCH/DELETE | `/bodyweight/{id}/` | Retrieve / correct / delete one entry |
 | GET/PATCH | `/profile/` | The signed-in user's unit preference and vitals (also nested on `/auth/me/`) |
@@ -100,10 +109,3 @@ A workout is created in a single POST with its entries nested, e.g.:
   ]
 }
 ```
-
-## Adding authentication later
-
-The pieces are already staged: set `owner` from `request.user` on create, flip
-`DEFAULT_PERMISSION_CLASSES` in `config/settings.py` from `AllowAny` to
-`IsAuthenticated`, add DRF token (or session) auth endpoints, and a login page
-on the frontend. No model migration churn is needed because `owner` exists.
