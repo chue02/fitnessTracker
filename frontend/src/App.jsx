@@ -9,6 +9,7 @@ import TemplateEditor from './pages/TemplateEditor.jsx'
 import Login from './pages/Login.jsx'
 import Register from './pages/Register.jsx'
 import Profile from './pages/Profile.jsx'
+import Records from './pages/Records.jsx'
 import { useAuth } from './auth.jsx'
 
 function Nav() {
@@ -26,6 +27,9 @@ function Nav() {
           </NavLink>
           <NavLink to="/exercises" className={({ isActive }) => 'link' + (isActive ? ' active' : '')}>
             Exercises
+          </NavLink>
+          <NavLink to="/records" className={({ isActive }) => 'link' + (isActive ? ' active' : '')}>
+            Records
           </NavLink>
           <NavLink to="/templates" className={({ isActive }) => 'link' + (isActive ? ' active' : '')}>
             Templates
@@ -84,6 +88,7 @@ export default function App() {
           <Route path="/workouts/:id/edit" element={<ProtectedRoute><NewWorkout /></ProtectedRoute>} />
           <Route path="/workouts/:id" element={<ProtectedRoute><WorkoutDetail /></ProtectedRoute>} />
           <Route path="/exercises" element={<ProtectedRoute><Exercises /></ProtectedRoute>} />
+          <Route path="/records" element={<ProtectedRoute><Records /></ProtectedRoute>} />
           <Route path="/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
           <Route path="/templates/new" element={<ProtectedRoute><TemplateEditor /></ProtectedRoute>} />
           <Route path="/templates/:id/edit" element={<ProtectedRoute><TemplateEditor /></ProtectedRoute>} />

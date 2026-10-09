@@ -481,3 +481,88 @@ th { color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--borde
 .star-btn:hover:not(:disabled), .star-btn:focus-visible { color: var(--text); }
 .star-btn.on { color: var(--star); }
 .star-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* Personal Records page. Rows reuse .pr-row; the divider moves to the wrapper
+   so an expanded row's detail sits inside the same band. */
+.rec-section-toggle,
+.rec-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+.rec-section-toggle { width: 100%; margin-bottom: 4px; }
+.rec-section-toggle:hover .pill { filter: brightness(1.25); }
+.rec-toggle:hover span:not(.res-tag) { text-decoration: underline; }
+.rec-chevron {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.15s ease;
+}
+.rec-chevron.open { transform: rotate(180deg); }
+.rec-section-toggle:hover .rec-chevron,
+.rec-toggle:hover .rec-chevron { stroke: var(--text); }
+.rec-sub { margin: 4px 0 0 24px; }
+.rec-row { border-bottom: 1px solid var(--border); }
+.rec-row:last-child { border-bottom: none; }
+.rec-row .pr-row { border-bottom: none; padding-bottom: 12px; }
+.rec-detail { padding: 0 0 14px 24px; }
+.rec-metrics { gap: 6px; margin-bottom: 6px; }
+.rec-min { display: flex; align-items: center; gap: 6px; margin: 0 0 0 auto; }
+.rec-min input { width: 70px; padding: 4px 8px; }
+
+.rec-history { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+.rec-history th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+.rec-history th, .rec-history td { padding: 5px 8px; }
+.rec-history .bd-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rec-history .pr-gain { margin-top: 0; }
+.rec-pct { font-weight: 400; }
+
+/* PR progression chart. Single series in the accent; grid and axis text stay
+   recessive so only the step line reads loud. */
+.pr-chart { position: relative; margin-top: 4px; }
+.pr-chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.pr-chart-grid { stroke: var(--border); stroke-width: 1; }
+.pr-chart-axis { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.pr-chart-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+/* Dots carry a 2px ring in the card color so they stay distinct on the line. */
+.pr-chart-dot { fill: var(--accent); stroke: var(--panel); stroke-width: 2; }
+.pr-chart-point { cursor: pointer; outline: none; }
+.pr-chart-point:focus-visible .pr-chart-dot { stroke: var(--text); }
+.pr-chart-tip {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 12px));
+  pointer-events: none;
+  z-index: 20;
+  padding: 6px 9px;
+  font-size: 12px;
+  white-space: nowrap;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+.pr-chart-tip-value { font-weight: 600; }

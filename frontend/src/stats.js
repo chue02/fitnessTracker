@@ -137,12 +137,30 @@ export function weekTotals(days) {
   return summarizeWorkouts(days.flatMap((d) => d.workouts))
 }
 
-// The most recent times a lift beat its own previous best, newest first.
+// Compare loads to the hundredth of a pound, so a set logged in kg and the same
+// load logged in lb don't differ by float noise and pass for a "heavier" lift.
+const sameOrLighter = (lb, bestLb) => Math.round(lb * 100) <= Math.round(bestLb * 100)
+
+// Where `value` sits in `order`, with anything unlisted after everything listed.
+const orderIndex = (order, value) => {
+  const i = order.indexOf(value)
+  return i === -1 ? order.length : i
+}
+
+// Every PR ever set, per exercise AND resistance (bench on a barbell and bench
+// on dumbbells are separate records), oldest record first within each group.
 //
-// A first-ever logged set is NOT a record here: with nothing to compare against
-// there is no improvement to report, and counting them would bury a real PR
-// under every new exercise the user tries.
-export function recentRecords(workouts, limit = 5) {
+// A PR is a strictly heavier load than the best before it. Two rules keep the
+// log free of noise:
+//   - Each workout contributes at most one record per lift: its heaviest set
+//     (ties to more reps). Ramping 100 → 110 → 120 in one session is one PR.
+//   - Matching or falling short of the best never logs, so repeat maxes
+//     (45, 45, 45) don't show up as fresh records.
+// The first session of each lift is kept as the baseline, flagged `initial`.
+//
+// Groups come back in split order, then resistance, then name — the same
+// shape as the home breakdown.
+export function prHistory(workouts) {
   // Oldest first, so "previous best" means what it says. The API sorts newest
   // first by (-date, -created_at); this is that comparison reversed.
   const ordered = [...workouts].sort(
@@ -152,44 +170,95 @@ export function recentRecords(workouts, limit = 5) {
       a.id - b.id,
   )
 
-  const best = new Map() // exercise id -> the top working set so far
-  const records = []
+  const groups = new Map() // `${exercise}::${equipment}` -> group
 
   for (const w of ordered) {
+    // This session's heaviest working set per lift.
+    const sessionBest = new Map()
     for (const e of w.entries) {
       if (!isWorkingSet(e)) continue
-      const equipment = e.equipment || ''
-      const key = `${e.exercise}::${equipment}`
-      const current = { lb: toLb(e.weight, e.weight_unit), weight: Number(e.weight), unit: e.weight_unit, reps: e.reps }
-      const prev = best.get(key)
-      if (!prev) {
-        best.set(key, current)
-        continue
+      const key = `${e.exercise}::${e.equipment || ''}`
+      const lb = toLb(e.weight, e.weight_unit)
+      const top = sessionBest.get(key)
+      if (!top || lb > top.lb || (lb === top.lb && e.reps > top.entry.reps)) {
+        sessionBest.set(key, { lb, entry: e })
       }
-      if (current.lb > prev.lb) {
-        records.push({
+    }
+
+    for (const [key, { lb, entry: e }] of sessionBest) {
+      let group = groups.get(key)
+      if (!group) {
+        group = {
+          key,
           exerciseId: e.exercise,
-          equipment,
+          equipment: e.equipment || '',
           name: e.exercise_name,
           split: e.exercise_split,
           muscleGroup: e.exercise_muscle_group,
-          weight: current.weight,
-          weightUnit: current.unit,
-          reps: current.reps,
-          bodyweight: isBodyweightSet(e),
-          // Reported in the new set's unit so the delta reads consistently.
-          gain: Math.round((current.lb - prev.lb) * (current.unit === 'kg' ? 1 / LB_PER_KG : 1) * 10) / 10,
-          previousWeight: prev.weight,
-          previousUnit: prev.unit,
-          date: w.date,
-          workoutId: w.id,
-        })
-        best.set(key, current)
+          records: [],
+        }
+        groups.set(key, group)
       }
+
+      const prev = group.records[group.records.length - 1]
+      if (prev && sameOrLighter(lb, prev.lb)) continue
+
+      const weight = Number(e.weight)
+      group.records.push({
+        lb,
+        weight,
+        weightUnit: e.weight_unit,
+        reps: e.reps,
+        bodyweight: isBodyweightSet(e),
+        date: w.date,
+        workoutId: w.id,
+        initial: !prev,
+        // Reported in the new set's unit so the delta reads consistently.
+        gain: prev
+          ? Math.round((lb - prev.lb) * (e.weight_unit === 'kg' ? 1 / LB_PER_KG : 1) * 10) / 10
+          : null,
+        // Relative to the previous best, on lb-normalized loads so it holds
+        // across a unit switch. One decimal.
+        gainPct: prev && prev.lb > 0 ? Math.round(((lb - prev.lb) / prev.lb) * 1000) / 10 : null,
+        previousWeight: prev ? prev.weight : null,
+        previousUnit: prev ? prev.weightUnit : null,
+      })
     }
   }
 
-  return records.reverse().slice(0, limit)
+  return [...groups.values()].sort(
+    (a, b) =>
+      orderIndex(SPLIT_ORDER, a.split) - orderIndex(SPLIT_ORDER, b.split) ||
+      orderIndex(EQUIPMENT_ORDER, a.equipment) - orderIndex(EQUIPMENT_ORDER, b.equipment) ||
+      a.name.localeCompare(b.name),
+  )
+}
+
+// The most recent times a lift beat its own previous best, newest first.
+// Built on prHistory so the home card and the Records page always agree.
+//
+// A lift's baseline (first session) is NOT a record here: with nothing to
+// compare against there is no improvement to report, and counting them would
+// bury a real PR under every new exercise the user tries.
+export function recentRecords(workouts, limit = 5) {
+  const records = []
+  for (const g of prHistory(workouts)) {
+    for (const r of g.records) {
+      if (r.initial) continue
+      records.push({
+        exerciseId: g.exerciseId,
+        equipment: g.equipment,
+        name: g.name,
+        split: g.split,
+        muscleGroup: g.muscleGroup,
+        ...r,
+      })
+    }
+  }
+  // Newest first; same-day records go by the later-saved workout.
+  return records
+    .sort((a, b) => b.date.localeCompare(a.date) || b.workoutId - a.workoutId)
+    .slice(0, limit)
 }
 
 // Whether the history contains any weighted working set at all — used to tell
@@ -242,6 +311,122 @@ export function distanceIn(distance, fromUnit, unit) {
   return unit === 'mi' ? n * MI_PER_KM : n / MI_PER_KM
 }
 
+// One workout's totals for one cardio exercise, in `unit`: every segment
+// summed, plus the distance and time of just the segments that have both (the
+// only ones a pace can come from). Null when the exercise isn't in the workout.
+function cardioSession(workout, exerciseId, unit) {
+  let found = false
+  let distance = 0
+  let seconds = 0
+  let pacedDistance = 0
+  let pacedSeconds = 0
+  for (const e of workout.entries) {
+    if (e.exercise !== exerciseId || e.exercise_category !== 'cardio') continue
+    found = true
+    const d = distanceIn(e.distance, e.distance_unit, unit)
+    const s = e.duration_seconds
+    if (d != null) distance += d
+    if (s != null) seconds += s
+    if (d > 0 && s > 0) {
+      pacedDistance += d
+      pacedSeconds += s
+    }
+  }
+  return found ? { distance, seconds, pacedDistance, pacedSeconds } : null
+}
+
+// Append `value` to a PR log if it beats the last entry, compared at
+// `precision` (100 = hundredths) so an entry never reads the same as the one
+// before it. The first value is the baseline.
+function logRecord(log, value, at, lowerIsBetter, precision) {
+  const prev = log[log.length - 1]
+  const r = (v) => Math.round(v * precision)
+  if (prev && (lowerIsBetter ? r(value) >= r(prev.value) : r(value) <= r(prev.value))) return
+  const change = prev ? Math.abs(r(value) - r(prev.value)) / precision : null
+  log.push({
+    value,
+    ...at,
+    initial: !prev,
+    change,
+    changePct: prev ? Math.round((change / prev.value) * 1000) / 10 : null,
+  })
+}
+
+// The fastest-pace log from a cardioHistory group's `sessions`, counting only
+// sessions of at least `minDistance` (same unit; 0 = any). Same 0.5% slack as
+// cardioRecords, so a 5K logged as 3.1 mi still counts as 5 km.
+export function paceHistory(sessions, minDistance = 0) {
+  const log = []
+  for (const s of sessions) {
+    if (s.distance < minDistance * 0.995) continue
+    logRecord(log, s.seconds / s.distance, s, true, 1)
+  }
+  return log
+}
+
+// Every cardio PR ever set, per exercise: three separate logs for fastest pace,
+// farthest distance and longest time, oldest first. Sessions are totaled as in
+// cardioRecords, and records follow the same rules as prHistory: the first
+// session is the baseline (`initial`), and only a strictly better value logs.
+// "Better" is judged at display precision (whole seconds, hundredths of a
+// distance) so no two log entries read the same.
+//
+// Each record: { value, date, workoutId, initial, change, changePct, distance,
+// seconds } — `change` is the improvement over the previous record (seconds
+// faster for pace), and distance/seconds give the session's context.
+//
+// `pace` counts sessions of any length. Each group also carries its paced
+// `sessions`, so paceHistory can rebuild the pace log for a minimum distance.
+export function cardioHistory(workouts, unit = 'mi') {
+  const ordered = [...workouts].sort(
+    (a, b) =>
+      a.date.localeCompare(b.date) ||
+      String(a.created_at).localeCompare(String(b.created_at)) ||
+      a.id - b.id,
+  )
+
+  const groups = new Map() // exercise id -> group
+
+  for (const w of ordered) {
+    const seen = new Set()
+    for (const e of w.entries) {
+      if (e.exercise_category !== 'cardio' || seen.has(e.exercise)) continue
+      seen.add(e.exercise)
+      const { distance, seconds, pacedDistance, pacedSeconds } = cardioSession(w, e.exercise, unit)
+
+      let group = groups.get(e.exercise)
+      if (!group) {
+        group = {
+          key: `cardio::${e.exercise}`,
+          kind: 'cardio',
+          exerciseId: e.exercise,
+          name: e.exercise_name,
+          split: 'cardio',
+          muscleGroup: e.exercise_muscle_group,
+          unit,
+          sessions: [], // ones with a pace, oldest first
+          pace: [],
+          distance: [],
+          time: [],
+        }
+        groups.set(e.exercise, group)
+      }
+
+      const at = { date: w.date, workoutId: w.id }
+      if (pacedDistance > 0) group.sessions.push({ ...at, distance: pacedDistance, seconds: pacedSeconds })
+      if (distance > 0) logRecord(group.distance, distance, { ...at, distance, seconds }, false, 100)
+      if (seconds > 0) logRecord(group.time, seconds, { ...at, distance, seconds }, false, 1)
+    }
+  }
+
+  for (const g of groups.values()) g.pace = paceHistory(g.sessions)
+
+  // A session with neither a distance nor a time sets no record.
+  return [...groups.values()]
+    .filter((g) => g.pace.length || g.distance.length || g.time.length)
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
 // Bests for one cardio exercise: fastest pace, farthest distance, longest time.
 //
 // Records are per SESSION: every segment of the exercise in one workout is
@@ -264,21 +449,9 @@ export function cardioRecords(workouts, exerciseId, unit = 'mi', minDistance = 0
     (value === best.value && date < best.date)
 
   for (const w of workouts) {
-    let distance = 0
-    let seconds = 0
-    let pacedDistance = 0
-    let pacedSeconds = 0
-    for (const e of w.entries) {
-      if (e.exercise !== exerciseId || e.exercise_category !== 'cardio') continue
-      const d = distanceIn(e.distance, e.distance_unit, unit)
-      const s = e.duration_seconds
-      if (d != null) distance += d
-      if (s != null) seconds += s
-      if (d > 0 && s > 0) {
-        pacedDistance += d
-        pacedSeconds += s
-      }
-    }
+    const session = cardioSession(w, exerciseId, unit)
+    if (!session) continue
+    const { distance, seconds, pacedDistance, pacedSeconds } = session
 
     const at = { date: w.date, workoutId: w.id }
     if (pacedDistance > 0 && qualifies(pacedDistance)) {
