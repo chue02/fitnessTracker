@@ -29,6 +29,11 @@ export function monthLabel(month, { short = false } = {}) {
   return short ? name.slice(0, 3) : `${name} ${month.slice(0, 4)}`
 }
 
+// "Sep 20" from a YYYY-MM-DD day.
+export function shortDate(iso) {
+  return `${monthLabel(iso.slice(0, 7), { short: true })} ${Number(iso.slice(8, 10))}`
+}
+
 // --- Body measurements ---
 // The profile stores height in cm and weight in kg; these convert for display
 // in the user's preferred units (lb pairs with ft/in, kg with cm).

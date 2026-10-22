@@ -4,12 +4,31 @@ import { api } from '../api.js'
 import { useAuth } from '../auth.jsx'
 import { errorMessage, formatDuration, monthLabel } from '../format.js'
 import {
-  breakdown, cardioBreakdown, groupByMonth, monthRange, summarizeWorkouts,
+  breakdown, cardioBreakdown, DAY_LETTERS, groupByMonth, monthDays, monthRange, summarizeWorkouts,
 } from '../stats.js'
 import BreakdownTable, { ByToggle } from '../components/BreakdownTable.jsx'
+import DayCell from '../components/DayCell.jsx'
 import WorkoutCard from '../components/WorkoutCard.jsx'
 
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/
+
+// The month as a Sun–Sat grid, a dot on each trained day — the home week
+// strip, stretched to a month.
+function MonthCalendar({ workouts, month }) {
+  const days = monthDays(workouts, month)
+  return (
+    <div className="month-grid">
+      {DAY_LETTERS.map((letter, i) => (
+        <div key={i} className="month-grid-head muted small">{letter}</div>
+      ))}
+      {/* Blank cells push the 1st under its weekday. */}
+      {Array.from({ length: days[0].weekday }, (_, i) => <div key={`pad-${i}`} />)}
+      {days.map((day) => (
+        <DayCell key={day.iso} day={day} />
+      ))}
+    </div>
+  )
+}
 
 function Stat({ label, value }) {
   return (
@@ -20,9 +39,9 @@ function Stat({ label, value }) {
   )
 }
 
-// One month at a glance, reached from the journal's month dividers: headline
-// totals, the per-exercise strength pivot (same table as the home card), a cardio
-// table, and the month's workouts.
+// One month at a glance, reached from the journal's month dividers: a calendar
+// of trained days and headline totals, the per-exercise strength pivot (same
+// table as the home card), a cardio table, and the month's workouts.
 export default function MonthSummary() {
   const { month } = useParams()
   const { user } = useAuth()
@@ -84,7 +103,8 @@ export default function MonthSummary() {
       ) : (
         <>
           <div className="card" style={{ marginTop: 20 }}>
-            <div className="stat-row" style={{ marginTop: 0 }}>
+            <MonthCalendar workouts={monthWorkouts} month={month} />
+            <div className="stat-row">
               <Stat label="Workouts" value={totals.workoutCount} />
               <Stat label="Days trained" value={trainedDays} />
               <Stat label="Exercises" value={totals.exerciseCount} />

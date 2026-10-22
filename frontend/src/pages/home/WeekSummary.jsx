@@ -1,14 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { formatDuration } from '../../format.js'
+import DayCell from '../../components/DayCell.jsx'
+import { formatDuration, shortDate } from '../../format.js'
 import { summarizeWorkouts, weekDays, weekRange, weekTotals } from '../../stats.js'
-
-// "Sep 20 – Sep 26" from two YYYY-MM-DD strings, without going through Date
-// (which would reinterpret them as UTC).
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-function shortDate(iso) {
-  return `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(8, 10))}`
-}
 
 // The strip pages back one week and no further.
 const MAX_WEEKS_BACK = 1
@@ -26,72 +20,6 @@ function Stat({ label, value, delta = null, format = (n) => n }) {
           {delta > 0 ? '▲ +' : '▼ -'}
           {format(Math.abs(delta))}
         </div>
-      )}
-    </div>
-  )
-}
-
-function TipLine({ label, value }) {
-  return (
-    <div className="tip-line">
-      <span>{label}</span>
-      <span>{value}</span>
-    </div>
-  )
-}
-
-// What a day's marker means, spelled out. Shown on hover and on keyboard focus;
-// purely CSS-driven, so there's no hover state to track in React.
-function DayTooltip({ day }) {
-  const s = day.summary
-  const trained = day.workouts.length > 0
-  return (
-    <div className="day-tip" role="tooltip">
-      <div className="tip-date">
-        {day.dayName}, {shortDate(day.iso)}
-        {day.isToday && <span className="muted small"> · today</span>}
-      </div>
-
-      {!trained ? (
-        <div className="muted small">Rest day — nothing logged.</div>
-      ) : (
-        <>
-          <TipLine label="Split" value={s.split || '—'} />
-          <TipLine label="Exercises" value={s.exerciseCount} />
-          {s.totalSets > 0 && (
-            <TipLine
-              label="Sets"
-              value={s.warmupSets ? `${s.totalSets} (${s.warmupSets} warmup)` : s.totalSets}
-            />
-          )}
-          {/* A cardio-only day has no sets to report — count segments instead
-              of showing a bare "Sets 0". */}
-          {s.cardioSegments > 0 && (
-            <TipLine
-              label="Segments"
-              value={s.cardioSegments}
-            />
-          )}
-          {s.volumeLb > 0 && <TipLine label="Volume" value={`${s.volumeLb.toLocaleString()} lb`} />}
-          {s.cardioSeconds > 0 && <TipLine label="Cardio" value={formatDuration(s.cardioSeconds)} />}
-          {s.cardioDistanceMi > 0 && (
-            <TipLine label="Distance" value={`${s.cardioDistanceMi.toFixed(1)} mi`} />
-          )}
-          {s.muscles.length > 0 && (
-            <div className="tip-muscles">
-              {s.muscles.map((m) => (
-                <span key={m.name} className={`muscle primary ${m.split}`.trim()}>
-                  {m.name}
-                </span>
-              ))}
-            </div>
-          )}
-          {s.workoutCount > 1 && (
-            <div className="muted small" style={{ marginTop: 6 }}>
-              {s.workoutCount} workouts · opens the first
-            </div>
-          )}
-        </>
       )}
     </div>
   )
@@ -147,37 +75,9 @@ export default function WeekSummary({ workouts }) {
       </div>
 
       <div className="week-strip">
-        {days.map((day) => {
-          // Cardio has no split, so a cardio-only day would fall through to the
-          // default accent and look identical to strength. Tint it like the
-          // cardio pill instead. A mixed day keeps its split hue.
-          const tone = day.split || (day.summary.cardioSegments > 0 ? 'cardio' : '')
-          const cell = (
-            <>
-              <div className="muted small">{day.letter}</div>
-              <div className="week-day-num">{day.dayOfMonth}</div>
-              <div className={`dot ${day.workouts.length ? `on ${tone}` : ''}`.trim()} />
-              <DayTooltip day={day} />
-            </>
-          )
-          const className = `week-day${day.isToday ? ' today' : ''}`
-          // Days with a workout jump straight to it; the rest are inert, but
-          // still hoverable so the tooltip can say the day was a rest day.
-          return day.workouts.length ? (
-            <Link
-              key={day.iso}
-              to={`/workouts/${day.workouts[0].id}`}
-              className={className}
-              style={{ color: 'inherit' }}
-            >
-              {cell}
-            </Link>
-          ) : (
-            <div key={day.iso} className={className} tabIndex={0}>
-              {cell}
-            </div>
-          )
-        })}
+        {days.map((day) => (
+          <DayCell key={day.iso} day={day} showLetter />
+        ))}
       </div>
 
       {totals.workoutCount === 0 ? (

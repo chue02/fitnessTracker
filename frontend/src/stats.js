@@ -14,7 +14,7 @@ import {
 
 const LB_PER_KG = 2.20462
 const MI_PER_KM = 0.621371
-const DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+export const DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 // Re-exported so callers of the stats module don't need two imports.
@@ -57,24 +57,42 @@ export function weekRange(today = new Date()) {
   return { startIso: days[0], endIso: days[6], days }
 }
 
-// One cell per day of the week, carrying that day's workouts and a summary of
-// them (the dominant split tints the marker; the rest feeds the hover tooltip).
+// One calendar cell: a day's workouts and a summary of them (the dominant split
+// tints the marker; the rest feeds the hover tooltip).
+function dayCell(workouts, iso, todayIso) {
+  const weekday = parseIso(iso).getDay()
+  const dayWorkouts = workouts.filter((w) => w.date === iso)
+  const summary = summarizeWorkouts(dayWorkouts)
+  return {
+    iso,
+    weekday,
+    letter: DAY_LETTERS[weekday],
+    dayName: DAY_NAMES[weekday],
+    dayOfMonth: Number(iso.slice(8, 10)),
+    isToday: iso === todayIso,
+    isFuture: iso > todayIso,
+    workouts: dayWorkouts,
+    summary,
+    split: summary.split,
+  }
+}
+
+// One cell per day of the week.
 export function weekDays(workouts, range, today = new Date()) {
   const todayIso = isoDate(today)
-  return range.days.map((iso, i) => {
-    const dayWorkouts = workouts.filter((w) => w.date === iso)
-    const summary = summarizeWorkouts(dayWorkouts)
-    return {
-      iso,
-      letter: DAY_LETTERS[i],
-      dayName: DAY_NAMES[i],
-      dayOfMonth: Number(iso.slice(8, 10)),
-      isToday: iso === todayIso,
-      workouts: dayWorkouts,
-      summary,
-      split: summary.split,
-    }
-  })
+  return range.days.map((iso) => dayCell(workouts, iso, todayIso))
+}
+
+// One cell per day of a YYYY-MM month, first to last.
+export function monthDays(workouts, month, today = new Date()) {
+  const todayIso = isoDate(today)
+  const [y, m] = month.split('-').map(Number)
+  const count = new Date(y, m, 0).getDate()
+  const cells = []
+  for (let d = 1; d <= count; d += 1) {
+    cells.push(dayCell(workouts, isoDate(new Date(y, m - 1, d)), todayIso))
+  }
+  return cells
 }
 
 // Totals over an arbitrary set of workouts — one day's worth or a whole week.
