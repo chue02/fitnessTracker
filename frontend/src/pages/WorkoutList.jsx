@@ -47,7 +47,7 @@ export default function WorkoutList() {
   return (
     <div>
       <div className="row between">
-        <h1>Workout journal</h1>
+        <h1>Your Workouts</h1>
         <Link to="/workouts/new" className="btn">
           + New workout
         </Link>
