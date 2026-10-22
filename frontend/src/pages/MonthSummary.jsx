@@ -75,7 +75,6 @@ export default function MonthSummary() {
 
   return (
     <div>
-      <Link to="/journal" className="small">← Journal</Link>
       <div className="row between" style={{ marginTop: 8 }}>
         <h1 style={{ margin: 0 }}>{monthLabel(month)}</h1>
         <span className="row" style={{ gap: 8 }}>

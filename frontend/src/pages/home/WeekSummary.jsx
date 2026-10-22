@@ -1,11 +1,9 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import DayCell from '../../components/DayCell.jsx'
-import { formatDuration, shortDate } from '../../format.js'
-import { summarizeWorkouts, weekDays, weekRange, weekTotals } from '../../stats.js'
-
-// The strip pages back one week and no further.
-const MAX_WEEKS_BACK = 1
+import { formatDuration, monthLabel, shortDate } from '../../format.js'
+import {
+  isoDate, monthKey, summarizeWorkouts, weekDays, weekRange, weekTotals,
+} from '../../stats.js'
 
 // `delta` is the change from the same stat a week earlier; null hides the line.
 // Up reads green, down reads muted grey rather than red — a deload week isn't a
@@ -25,53 +23,34 @@ function Stat({ label, value, delta = null, format = (n) => n }) {
   )
 }
 
-// This week at a glance: a Sun–Sat strip marking the days trained, plus totals.
+// This week at a glance: a Sun–Sat strip marking the days trained, plus totals
+// and a way into this month's summary.
 export default function WeekSummary({ workouts }) {
-  // Whole weeks back from the current one; 0 is this week.
-  const [weekOffset, setWeekOffset] = useState(0)
-
   const today = new Date()
-  const anchor = new Date(today.getFullYear(), today.getMonth(), today.getDate() - weekOffset * 7)
-  const range = weekRange(anchor)
-  // `today` stays the real today, so the highlight only appears on week 0.
+  const range = weekRange(today)
   const days = weekDays(workouts, range, today)
   const totals = weekTotals(days)
 
-  // The week before the one on screen, for the deltas. Paging back keeps the
-  // comparison relative, so "Last week" is measured against two weeks ago.
-  const prevAnchor = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() - 7)
-  const prevRange = weekRange(prevAnchor)
+  // Last week, for the deltas.
+  const prevRange = weekRange(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7))
   const prev = summarizeWorkouts(workouts.filter((w) => w.date >= prevRange.startIso && w.date <= prevRange.endIso))
   // Against an empty week every stat is "+everything" — noise on a new account.
   const delta = (key) => (prev.workoutCount > 0 ? totals[key] - prev[key] : null)
 
+  const month = monthKey(isoDate(today))
+
   return (
     <div className="card">
       <div className="row between">
-        <h2 style={{ margin: 0 }}>{weekOffset === 0 ? 'This week' : 'Last week'}</h2>
-        <span className="row" style={{ gap: 8 }}>
-          <button
-            className="btn small ghost"
-            onClick={() => setWeekOffset(weekOffset + 1)}
-            disabled={weekOffset >= MAX_WEEKS_BACK}
-            aria-label="Previous week"
-            title={weekOffset >= MAX_WEEKS_BACK ? "That's as far back as this goes" : 'Previous week'}
-          >
-            ‹
-          </button>
-          <span className="muted small" style={{ minWidth: 104, textAlign: 'center' }}>
+        <span className="row" style={{ gap: 10, alignItems: 'baseline' }}>
+          <h2 style={{ margin: 0 }}>This week</h2>
+          <span className="muted small">
             {shortDate(range.startIso)} – {shortDate(range.endIso)}
           </span>
-          <button
-            className="btn small ghost"
-            onClick={() => setWeekOffset(weekOffset - 1)}
-            disabled={weekOffset === 0}
-            aria-label="Next week"
-            title={weekOffset === 0 ? 'Already on the current week' : 'Next week'}
-          >
-            ›
-          </button>
         </span>
+        <Link to={`/journal/${month}`} className="btn small ghost">
+          {monthLabel(month, { short: true })} summary →
+        </Link>
       </div>
 
       <div className="week-strip">
@@ -82,13 +61,7 @@ export default function WeekSummary({ workouts }) {
 
       {totals.workoutCount === 0 ? (
         <div className="muted small" style={{ marginTop: 14 }}>
-          {weekOffset === 0 ? (
-            <>
-              Nothing logged this week yet. <Link to="/workouts/new">Start one →</Link>
-            </>
-          ) : (
-            'No workouts logged this week.'
-          )}
+          Nothing logged this week yet. <Link to="/workouts/new">Start one →</Link>
         </div>
       ) : (
         <div className="stat-row">

@@ -99,8 +99,8 @@ export default function WorkoutDetail() {
         </div>
       ))}
 
-      <button className="btn ghost" onClick={() => navigate('/journal')} style={{ marginTop: 12 }}>
-        ← Back to journal
+      <button className="btn ghost" onClick={() => history.back()} style={{ marginTop: 12 }}>
+        ← Go Back
       </button>
     </div>
   )
