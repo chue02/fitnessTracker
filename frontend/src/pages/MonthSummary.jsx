@@ -21,8 +21,8 @@ function Stat({ label, value }) {
 }
 
 // One month at a glance, reached from the journal's month dividers: headline
-// totals, the per-exercise strength pivot (same columns as the home card, with
-// split subtotals), a cardio table, and the month's workouts.
+// totals, the per-exercise strength pivot (same table as the home card), a cardio
+// table, and the month's workouts.
 export default function MonthSummary() {
   const { month } = useParams()
   const { user } = useAuth()
@@ -111,7 +111,7 @@ export default function MonthSummary() {
                 <h2 style={{ margin: 0 }}>Strength</h2>
                 <ByToggle by={by} onChange={setBy} />
               </div>
-              <BreakdownTable sections={sections} by={by} showTotals />
+              <BreakdownTable sections={sections} by={by} />
             </div>
           )}
 

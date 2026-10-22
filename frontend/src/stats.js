@@ -584,7 +584,7 @@ export function splitBalance(workouts, today = new Date(), windowDays = 30) {
 // --- Strength breakdown ---
 // A pivot of training over a date range (the last 7 days, or a month): per split, then either per resistance+exercise or
 // per muscle. Mirrors the columns of the user's spreadsheet:
-//   MAX Lbs, Lbs Wtd Avg, SUM of Sets, SUM of Reps, Avg Reps/Set
+//   MAX Lbs, Lbs Wtd Avg, SUM of Sets, SUM of Reps, Avg Reps/Set, plus total volume
 // where the weighted average is volume over reps, i.e. Σ(weight × reps) / Σ(reps).
 
 // Roll a list of sets into that stat line. Weight-less sets still count toward
@@ -614,6 +614,8 @@ function statsFor(entries) {
     reps,
     maxLb,
     wtdAvgLb: loadedReps > 0 ? volumeLb / loadedReps : null,
+    // Same null rule as the average: no loaded set, no volume to report.
+    volumeLb: loadedReps > 0 ? volumeLb : null,
     avgRepsPerSet: sets > 0 ? reps / sets : 0,
   }
 }

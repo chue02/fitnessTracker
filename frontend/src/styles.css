@@ -316,14 +316,6 @@ a.week-day:hover { border-color: var(--accent); }
 .breakdown .bd-muscle { text-transform: capitalize; }
 .breakdown td .res-tag { margin-left: 8px; }
 
-/* Split header carrying the split's subtotal (month summary). */
-.breakdown tr.bd-total th, .breakdown tr.bd-total td {
-  background: var(--panel-2);
-  border-top: 1px solid var(--border);
-  font-weight: 600;
-}
-.breakdown tr.bd-total .bd-toggle { width: auto; }
-
 /* Self-explaining column headings. Same CSS-only pattern as the week strip's
    day tooltip, but dropping DOWN so it never covers the card's own title. */
 .breakdown thead th {
@@ -354,6 +346,9 @@ a.week-day:hover { border-color: var(--accent); }
   transition: opacity 0.12s ease;
   pointer-events: none;
 }
+/* The rightmost heading's tip hangs left so it stays inside the card. */
+.breakdown thead th:last-child .col-tip { left: auto; right: 0; transform: none; }
+.breakdown thead th:last-child .col-tip::after { left: auto; right: 22px; margin-left: 0; }
 .breakdown thead th:hover .col-tip,
 .breakdown thead th:focus-visible .col-tip { opacity: 1; visibility: visible; }
 /* Arrow, filled to match the panel. */

@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import ResistanceTag from './ResistanceTag.jsx'
 
-const COLUMNS = 6
+const COLUMNS = 7
 
-// The five stat columns, each with a short explanation surfaced on hover.
+// The six stat columns, each with a short explanation surfaced on hover.
 // WAVG is the one that genuinely needs explaining: it's volume per rep, so a
 // heavy set of 5 counts for more than a light set of 5 — not a flat mean of
 // the set weights.
@@ -32,6 +32,12 @@ const STAT_COLUMNS = [
     label: 'Reps/set',
     title: 'Average reps per set',
     body: 'Total reps ÷ total sets.',
+  },
+  {
+    key: 'volumeLb',
+    label: 'Volume',
+    title: 'Total volume',
+    body: 'Weight × reps, summed over every set, in pounds. Sets with no recorded load add nothing.',
   },
 ]
 
@@ -65,6 +71,7 @@ function StatCells({ stats }) {
       <td className="bd-num">{stats.sets}</td>
       <td className="bd-num">{stats.reps}</td>
       <td className="bd-num">{num(stats.avgRepsPerSet)}</td>
+      <td className="bd-num">{stats.volumeLb == null ? '—' : Math.round(stats.volumeLb).toLocaleString()}</td>
     </>
   )
 }
@@ -85,9 +92,8 @@ export function ByToggle({ by, onChange }) {
 }
 
 // The pivot table for a `breakdown()` result: one collapsible section per
-// split. With `showTotals`, each split's header row carries its subtotal, so
-// it stays visible while the section is collapsed.
-export default function BreakdownTable({ sections, by, showTotals = false }) {
+// split.
+export default function BreakdownTable({ sections, by }) {
   const [collapsed, setCollapsed] = useState(() => new Set())
   const byMuscle = by === 'muscle'
 
@@ -123,7 +129,6 @@ export default function BreakdownTable({ sections, by, showTotals = false }) {
             key={section.split}
             section={section}
             byMuscle={byMuscle}
-            showTotals={showTotals}
             isCollapsed={collapsed.has(section.split)}
             onToggle={() => toggle(section.split)}
           />
@@ -133,11 +138,11 @@ export default function BreakdownTable({ sections, by, showTotals = false }) {
   )
 }
 
-function Section({ section, byMuscle, showTotals, isCollapsed, onToggle }) {
+function Section({ section, byMuscle, isCollapsed, onToggle }) {
   return (
     <>
-      <tr className={`bd-split${showTotals ? ' bd-total' : ''}`}>
-        <th colSpan={showTotals ? 1 : COLUMNS} scope="rowgroup">
+      <tr className="bd-split">
+        <th colSpan={COLUMNS} scope="rowgroup">
           <button
             className="bd-toggle"
             aria-expanded={!isCollapsed}
@@ -145,10 +150,8 @@ function Section({ section, byMuscle, showTotals, isCollapsed, onToggle }) {
           >
             <span className="bd-caret">{isCollapsed ? '▸' : '▾'}</span>
             <span className={`pill ${section.split}`}>{section.split}</span>
-            {showTotals && <span>total</span>}
           </button>
         </th>
-        {showTotals && <StatCells stats={section.totals} />}
       </tr>
 
       {!isCollapsed &&
