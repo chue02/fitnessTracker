@@ -26,10 +26,9 @@ function MonthDivider({ month, workouts }) {
         <span className="month-badge-year">{month.slice(0, 4)}</span>
       </span>
       <span className="month-divider-text">
-        <span className="month-divider-title">{monthLabel(month)}</span>
-        <span className="muted small">{bits.join(' · ')}</span>
+        <span className="text">{bits.join(' · ')}</span>
       </span>
-      <span className="month-divider-cta small">Summary →</span>
+      <span className="month-divider-cta">Summary →</span>
     </Link>
   )
 }
