@@ -581,8 +581,8 @@ export function splitBalance(workouts, today = new Date(), windowDays = 30) {
   }))
 }
 
-// --- Last-7-days breakdown ---
-// A pivot of recent training: per split, then either per resistance+exercise or
+// --- Strength breakdown ---
+// A pivot of training over a date range (the last 7 days, or a month): per split, then either per resistance+exercise or
 // per muscle. Mirrors the columns of the user's spreadsheet:
 //   MAX Lbs, Lbs Wtd Avg, SUM of Sets, SUM of Reps, Avg Reps/Set
 // where the weighted average is volume over reps, i.e. Σ(weight × reps) / Σ(reps).
@@ -618,12 +618,9 @@ function statsFor(entries) {
   }
 }
 
-// Every strength set from the trailing `days`-day window, warmups excluded.
-function recentStrengthEntries(workouts, today, days) {
-  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (days - 1))
-  const startIso = isoDate(start)
-  const endIso = isoDate(today)
-
+// Every strength set logged between two YYYY-MM-DD days (inclusive), warmups
+// excluded.
+function strengthEntriesBetween(workouts, startIso, endIso) {
   const out = []
   for (const w of workouts) {
     if (w.date < startIso || w.date > endIso) continue
@@ -636,11 +633,18 @@ function recentStrengthEntries(workouts, today, days) {
   return out
 }
 
-// `by: 'exercise'` groups split -> resistance -> exercise; `by: 'muscle'`
-// groups split -> primary muscle. Returns one section per split, each with its
-// own subtotal. No grand total — the splits don't meaningfully sum.
+// The breakdown over the trailing `days`-day window ending today.
 export function weeklyBreakdown(workouts, { by = 'exercise', today = new Date(), days = 7 } = {}) {
-  const entries = recentStrengthEntries(workouts, today, days)
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (days - 1))
+  return breakdown(workouts, { by, startIso: isoDate(start), endIso: isoDate(today) })
+}
+
+// `by: 'exercise'` groups split -> resistance -> exercise; `by: 'muscle'`
+// groups split -> primary muscle, over the days `startIso`..`endIso`. Returns
+// one section per split, each with its own subtotal. No grand total — the
+// splits don't meaningfully sum.
+export function breakdown(workouts, { by = 'exercise', startIso, endIso }) {
+  const entries = strengthEntriesBetween(workouts, startIso, endIso)
 
   // split -> row key -> entries
   const bySplit = new Map()
@@ -703,4 +707,70 @@ export function weeklyBreakdown(workouts, { by = 'exercise', today = new Date(),
         totals: statsFor([...rowMap.values()].flat()),
       }
     })
+}
+
+// --- Months ---
+// Month keys are the YYYY-MM prefix of a day, so they sort and compare as
+// strings with no Date (and no UTC trap) involved.
+
+export const monthKey = (iso) => iso.slice(0, 7)
+
+// First and last day of a YYYY-MM month, as YYYY-MM-DD.
+export function monthRange(month) {
+  const [y, m] = month.split('-').map(Number)
+  return { startIso: isoDate(new Date(y, m - 1, 1)), endIso: isoDate(new Date(y, m, 0)) }
+}
+
+// Split a newest-first workout list into consecutive month groups, newest
+// month first: [{ month, workouts }]. Order within each group is preserved.
+export function groupByMonth(workouts) {
+  const groups = []
+  for (const w of workouts) {
+    const month = monthKey(w.date)
+    const last = groups[groups.length - 1]
+    if (last && last.month === month) last.workouts.push(w)
+    else groups.push({ month, workouts: [w] })
+  }
+  return groups
+}
+
+// Per cardio exercise over a date range: sessions (workouts it appears in),
+// total distance and time in `unit`, and the average pace across the segments
+// that logged both. Sessions are totaled as in cardioRecords. Alphabetical.
+export function cardioBreakdown(workouts, { startIso, endIso, unit = 'mi' }) {
+  const rows = new Map() // exercise id -> row
+  for (const w of workouts) {
+    if (w.date < startIso || w.date > endIso) continue
+    const seen = new Set()
+    for (const e of w.entries) {
+      if (e.exercise_category !== 'cardio' || seen.has(e.exercise)) continue
+      seen.add(e.exercise)
+      const s = cardioSession(w, e.exercise, unit)
+      let row = rows.get(e.exercise)
+      if (!row) {
+        row = {
+          key: e.exercise,
+          name: e.exercise_name,
+          sessions: 0,
+          distance: 0,
+          seconds: 0,
+          pacedDistance: 0,
+          pacedSeconds: 0,
+        }
+        rows.set(e.exercise, row)
+      }
+      row.sessions += 1
+      row.distance += s.distance
+      row.seconds += s.seconds
+      row.pacedDistance += s.pacedDistance
+      row.pacedSeconds += s.pacedSeconds
+    }
+  }
+  return [...rows.values()]
+    .map(({ pacedDistance, pacedSeconds, ...row }) => ({
+      ...row,
+      // Seconds per `unit`; null when no segment had both a distance and a time.
+      pace: pacedDistance > 0 ? pacedSeconds / pacedDistance : null,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name))
 }

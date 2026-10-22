@@ -18,6 +18,17 @@ export function parseIso(iso) {
   return new Date(y, m - 1, d)
 }
 
+// "March 2025" (or "Mar" with `short`) from a YYYY-MM month key, without
+// going through Date.
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+]
+export function monthLabel(month, { short = false } = {}) {
+  const name = MONTH_NAMES[Number(month.slice(5, 7)) - 1]
+  return short ? name.slice(0, 3) : `${name} ${month.slice(0, 4)}`
+}
+
 // --- Body measurements ---
 // The profile stores height in cm and weight in kg; these convert for display
 // in the user's preferred units (lb pairs with ft/in, kg with cm).

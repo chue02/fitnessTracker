@@ -10,6 +10,7 @@ import Login from './pages/Login.jsx'
 import Register from './pages/Register.jsx'
 import Profile from './pages/Profile.jsx'
 import Records from './pages/Records.jsx'
+import MonthSummary from './pages/MonthSummary.jsx'
 import { useAuth } from './auth.jsx'
 
 function Nav() {
@@ -84,6 +85,7 @@ export default function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/" element={<Home />} />
           <Route path="/journal" element={<ProtectedRoute><WorkoutList /></ProtectedRoute>} />
+          <Route path="/journal/:month" element={<ProtectedRoute><MonthSummary /></ProtectedRoute>} />
           <Route path="/workouts/new" element={<ProtectedRoute><NewWorkout /></ProtectedRoute>} />
           <Route path="/workouts/:id/edit" element={<ProtectedRoute><NewWorkout /></ProtectedRoute>} />
           <Route path="/workouts/:id" element={<ProtectedRoute><WorkoutDetail /></ProtectedRoute>} />

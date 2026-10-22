@@ -316,6 +316,14 @@ a.week-day:hover { border-color: var(--accent); }
 .breakdown .bd-muscle { text-transform: capitalize; }
 .breakdown td .res-tag { margin-left: 8px; }
 
+/* Split header carrying the split's subtotal (month summary). */
+.breakdown tr.bd-total th, .breakdown tr.bd-total td {
+  background: var(--panel-2);
+  border-top: 1px solid var(--border);
+  font-weight: 600;
+}
+.breakdown tr.bd-total .bd-toggle { width: auto; }
+
 /* Self-explaining column headings. Same CSS-only pattern as the week strip's
    day tooltip, but dropping DOWN so it never covers the card's own title. */
 .breakdown thead th {
@@ -566,3 +574,37 @@ th { color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--borde
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
 }
 .pr-chart-tip-value { font-weight: 600; }
+
+/* --- Journal month dividers --- */
+.month-group + .month-group { margin-top: 28px; }
+.month-divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-2);
+  color: inherit;
+}
+.month-divider:hover { border-color: var(--accent); }
+.month-divider:hover .month-divider-cta { color: var(--accent); }
+.month-divider:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Tear-off calendar page, à la a film diary. */
+.month-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 52px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border-top: 4px solid var(--accent);
+  background: var(--panel);
+  line-height: 1.1;
+}
+.month-badge-name { font-weight: 700; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; }
+.month-badge-year { font-size: 11px; color: var(--muted); }
+.month-divider-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.month-divider-title { font-weight: 600; font-size: 16px; }
+.month-divider-cta { color: var(--muted); white-space: nowrap; }
