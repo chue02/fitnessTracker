@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import PrChart from './PrChart.jsx'
+import LineChart from './LineChart.jsx'
 import { equipmentLabel, lbToKg, round } from '../format.js'
 import { liftProgress, progressLifts } from '../stats.js'
 
@@ -94,8 +94,7 @@ export default function LiftProgress({ workouts, unit }) {
         </div>
       ) : (
         <div style={{ marginTop: 12 }}>
-          <PrChart
-            step={false}
+          <LineChart
             label={`${metricLabel} (${unit})`}
             points={points.map((p) => ({
               date: p.date,

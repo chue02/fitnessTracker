@@ -538,13 +538,13 @@ th { color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--borde
 .rec-history .pr-gain { margin-top: 0; }
 .rec-pct { font-weight: 400; }
 
-/* PR progression chart. Single series in the accent; grid and axis text stay
-   recessive so only the step line reads loud. */
-.pr-chart { position: relative; margin-top: 4px; }
-.pr-chart svg { display: block; width: 100%; height: auto; overflow: visible; }
-.pr-chart-grid { stroke: var(--border); stroke-width: 1; }
-.pr-chart-axis { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
-.pr-chart-line {
+/* LineChart (PR progressions, lift progress). Single series in the accent;
+   grid and axis text stay recessive so only the line reads loud. */
+.line-chart { position: relative; margin-top: 4px; }
+.line-chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.line-chart-grid { stroke: var(--border); stroke-width: 1; }
+.line-chart-axis { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.line-chart-line {
   fill: none;
   stroke: var(--accent);
   stroke-width: 2;
@@ -552,10 +552,10 @@ th { color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--borde
   stroke-linecap: round;
 }
 /* Dots carry a 2px ring in the card color so they stay distinct on the line. */
-.pr-chart-dot { fill: var(--accent); stroke: var(--panel); stroke-width: 2; }
-.pr-chart-point { cursor: pointer; outline: none; }
-.pr-chart-point:focus-visible .pr-chart-dot { stroke: var(--text); }
-.pr-chart-tip {
+.line-chart-dot { fill: var(--accent); stroke: var(--panel); stroke-width: 2; }
+.line-chart-point { cursor: pointer; outline: none; }
+.line-chart-point:focus-visible .line-chart-dot { stroke: var(--text); }
+.line-chart-tip {
   position: absolute;
   transform: translate(-50%, calc(-100% - 12px));
   pointer-events: none;
@@ -568,7 +568,7 @@ th { color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--borde
   border-radius: 8px;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
 }
-.pr-chart-tip-value { font-weight: 600; }
+.line-chart-tip-value { font-weight: 600; }
 
 /* Month calendar on the month summary: the week strip's cells in a Sun–Sat
    grid, with one row of weekday initials instead of one per cell. */
