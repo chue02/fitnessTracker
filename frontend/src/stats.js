@@ -842,23 +842,40 @@ export function progressLifts(workouts) {
     .sort((a, b) => b.lastDate.localeCompare(a.lastDate) || a.name.localeCompare(b.name))
 }
 
-// One lift on one resistance, one point per DAY it was trained, oldest first:
-// { date, maxLb, wtdAvgLb, volumeLb, sets, reps }. Same sets and math as the
+// One point per DAY that has a matching set, oldest first: { date, maxLb,
+// wtdAvgLb, volumeLb, sets, reps, exercises }. Same sets and math as the
 // breakdown table (warmups out; two workouts on one day pool their sets), so a
 // month's numbers here match that month's row there. Days with no loaded set
 // are dropped — they have nothing to plot.
-export function liftProgress(workouts, exerciseId, equipment) {
+function dailyProgress(workouts, matches) {
   const byDay = new Map() // date -> entries
   for (const w of workouts) {
     for (const e of w.entries) {
-      if (e.exercise !== exerciseId || (e.equipment || '') !== equipment) continue
-      if (e.exercise_category !== 'strength' || e.is_warmup) continue
+      if (e.exercise_category !== 'strength' || e.is_warmup || !matches(e)) continue
       if (!byDay.has(w.date)) byDay.set(w.date, [])
       byDay.get(w.date).push(e)
     }
   }
   return [...byDay]
-    .map(([date, entries]) => ({ date, ...statsFor(entries) }))
+    .map(([date, entries]) => ({
+      date,
+      ...statsFor(entries),
+      exercises: new Set(entries.map((e) => e.exercise)).size,
+    }))
     .filter((p) => p.wtdAvgLb != null)
     .sort((a, b) => a.date.localeCompare(b.date))
+}
+
+// One lift on one resistance, day by day (see dailyProgress).
+export function liftProgress(workouts, exerciseId, equipment) {
+  return dailyProgress(
+    workouts,
+    (e) => e.exercise === exerciseId && (e.equipment || '') === equipment,
+  )
+}
+
+// Every lift whose PRIMARY muscle is `muscle`, pooled day by day — the
+// breakdown table's "by muscle" row, over time.
+export function muscleProgress(workouts, muscle) {
+  return dailyProgress(workouts, (e) => (e.exercise_muscle_group || 'other') === muscle)
 }
