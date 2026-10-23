@@ -798,9 +798,10 @@ export function cardioBreakdown(workouts, { startIso, endIso, unit = 'mi' }) {
 // --- Lift progress ---
 
 // Every strength lift with something to chart, per resistance: { exerciseId,
-// name, lastDate, variants: [{ equipment, days, lastDate }] }, where `days`
-// counts distinct days trained — one per point liftProgress plots. Lifts and
-// their variants are newest-trained first, so [0] is a sensible default pick.
+// name, split, muscleGroup, lastDate, variants: [{ equipment, days, lastDate }] },
+// where `days` counts distinct days trained — one per point liftProgress
+// plots. Lifts and their variants are newest-trained first, so [0] is a
+// sensible default pick.
 export function progressLifts(workouts) {
   const lifts = new Map() // exercise id -> lift
   for (const w of workouts) {
@@ -809,7 +810,14 @@ export function progressLifts(workouts) {
       const equipment = e.equipment || ''
       let lift = lifts.get(e.exercise)
       if (!lift) {
-        lift = { exerciseId: e.exercise, name: e.exercise_name, lastDate: w.date, variants: new Map() }
+        lift = {
+          exerciseId: e.exercise,
+          name: e.exercise_name,
+          split: e.exercise_split || '',
+          muscleGroup: e.exercise_muscle_group || '',
+          lastDate: w.date,
+          variants: new Map(),
+        }
         lifts.set(e.exercise, lift)
       }
       if (w.date > lift.lastDate) lift.lastDate = w.date
