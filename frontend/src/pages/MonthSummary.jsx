@@ -8,6 +8,7 @@ import {
 } from '../stats.js'
 import BreakdownTable, { ByToggle } from '../components/BreakdownTable.jsx'
 import DayCell from '../components/DayCell.jsx'
+import LiftProgress from '../components/LiftProgress.jsx'
 import WorkoutCard from '../components/WorkoutCard.jsx'
 
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/
@@ -41,11 +42,13 @@ function Stat({ label, value }) {
 
 // One month at a glance, reached from the journal's month dividers: a calendar
 // of trained days and headline totals, the per-exercise strength pivot (same
-// table as the home card), a cardio table, and the month's workouts.
+// table as the home card), a progress chart for one lift, a cardio table, and
+// the month's workouts.
 export default function MonthSummary() {
   const { month } = useParams()
   const { user } = useAuth()
-  const distanceUnit = user.profile?.weight_unit === 'kg' ? 'km' : 'mi'
+  const unit = user.profile?.weight_unit === 'kg' ? 'kg' : 'lb'
+  const distanceUnit = unit === 'kg' ? 'km' : 'mi'
 
   const [workouts, setWorkouts] = useState(null)
   const [error, setError] = useState(null)
@@ -133,6 +136,8 @@ export default function MonthSummary() {
               <BreakdownTable sections={sections} by={by} />
             </div>
           )}
+
+          <LiftProgress workouts={monthWorkouts} unit={unit} />
 
           {cardio.length > 0 && (
             <div className="card">

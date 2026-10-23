@@ -29,7 +29,9 @@ function niceTicks(min, max, time) {
 }
 
 // A PR progression as a step line: each record holds until the next one beats
-// it, and the last runs on to today because it still stands.
+// it, and the last runs on to today because it still stands. With
+// `step={false}` it's a plain line from point to point that ends at the last
+// one — for per-session values, which don't "hold" between sessions.
 //
 // `points` are { date, value, tip } oldest first, where `tip` is the hover
 // text. `time` treats values as seconds (ticks read as m:ss). `lowerIsBetter`
@@ -39,6 +41,7 @@ export default function PrChart({
   label,
   time = false,
   lowerIsBetter = false,
+  step = true,
   today = isoDate(new Date()),
 }) {
   const [active, setActive] = useState(null)
@@ -47,7 +50,8 @@ export default function PrChart({
   const points = records.map((r) => ({ r, t: parseIso(r.date).getTime(), v: r.value }))
 
   const t0 = points[0].t
-  const tEnd = Math.max(parseIso(today).getTime(), points[points.length - 1].t)
+  const tLast = points[points.length - 1].t
+  const tEnd = step ? Math.max(parseIso(today).getTime(), tLast) : tLast
   // A lone record set today still needs some width to draw across.
   const tSpan = Math.max(tEnd - t0, DAY_MS)
   const ticks = niceTicks(Math.min(...points.map((p) => p.v)), Math.max(...points.map((p) => p.v)), time)
@@ -62,15 +66,16 @@ export default function PrChart({
 
   let path = ''
   points.forEach((p, i) => {
-    path += i === 0 ? `M${x(p.t)},${y(p.v)}` : `H${x(p.t)}V${y(p.v)}`
+    if (i === 0) path += `M${x(p.t)},${y(p.v)}`
+    else path += step ? `H${x(p.t)}V${y(p.v)}` : `L${x(p.t)},${y(p.v)}`
   })
-  path += `H${x(tEnd)}`
+  if (step) path += `H${x(tEnd)}`
 
   const hovered = active === null ? null : points[active]
 
   return (
     <div className="pr-chart" onMouseLeave={() => setActive(null)}>
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${label} PR progression`}>
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${label} ${step ? 'PR progression' : 'over time'}`}>
         {ticks.map((v) => (
           <g key={v}>
             <line className="pr-chart-grid" x1={PAD.left} x2={W - PAD.right} y1={y(v)} y2={y(v)} />
@@ -83,7 +88,7 @@ export default function PrChart({
           {shortDate(records[0].date)}
         </text>
         <text className="pr-chart-axis" x={W - PAD.right} y={H - 6} textAnchor="end">
-          {tEnd > points[points.length - 1].t ? 'Today' : shortDate(records[records.length - 1].date)}
+          {tEnd > tLast ? 'Today' : shortDate(records[records.length - 1].date)}
         </text>
 
         <path className="pr-chart-line" d={path} />

@@ -794,3 +794,63 @@ export function cardioBreakdown(workouts, { startIso, endIso, unit = 'mi' }) {
     }))
     .sort((a, b) => a.name.localeCompare(b.name))
 }
+
+// --- Lift progress ---
+
+// Every strength lift with something to chart, per resistance: { exerciseId,
+// name, lastDate, variants: [{ equipment, days, lastDate }] }, where `days`
+// counts distinct days trained — one per point liftProgress plots. Lifts and
+// their variants are newest-trained first, so [0] is a sensible default pick.
+export function progressLifts(workouts) {
+  const lifts = new Map() // exercise id -> lift
+  for (const w of workouts) {
+    for (const e of w.entries) {
+      if (e.exercise_category !== 'strength' || e.is_warmup || e.weight == null) continue
+      const equipment = e.equipment || ''
+      let lift = lifts.get(e.exercise)
+      if (!lift) {
+        lift = { exerciseId: e.exercise, name: e.exercise_name, lastDate: w.date, variants: new Map() }
+        lifts.set(e.exercise, lift)
+      }
+      if (w.date > lift.lastDate) lift.lastDate = w.date
+      let variant = lift.variants.get(equipment)
+      if (!variant) {
+        variant = { equipment, dates: new Set(), lastDate: w.date }
+        lift.variants.set(equipment, variant)
+      }
+      if (w.date > variant.lastDate) variant.lastDate = w.date
+      variant.dates.add(w.date)
+    }
+  }
+  return [...lifts.values()]
+    .map((l) => ({
+      ...l,
+      variants: [...l.variants.values()].map(({ dates, ...v }) => ({ ...v, days: dates.size })).sort(
+        (a, b) =>
+          b.lastDate.localeCompare(a.lastDate) ||
+          orderIndex(EQUIPMENT_ORDER, a.equipment) - orderIndex(EQUIPMENT_ORDER, b.equipment),
+      ),
+    }))
+    .sort((a, b) => b.lastDate.localeCompare(a.lastDate) || a.name.localeCompare(b.name))
+}
+
+// One lift on one resistance, one point per DAY it was trained, oldest first:
+// { date, maxLb, wtdAvgLb, volumeLb, sets, reps }. Same sets and math as the
+// breakdown table (warmups out; two workouts on one day pool their sets), so a
+// month's numbers here match that month's row there. Days with no loaded set
+// are dropped — they have nothing to plot.
+export function liftProgress(workouts, exerciseId, equipment) {
+  const byDay = new Map() // date -> entries
+  for (const w of workouts) {
+    for (const e of w.entries) {
+      if (e.exercise !== exerciseId || (e.equipment || '') !== equipment) continue
+      if (e.exercise_category !== 'strength' || e.is_warmup) continue
+      if (!byDay.has(w.date)) byDay.set(w.date, [])
+      byDay.get(w.date).push(e)
+    }
+  }
+  return [...byDay]
+    .map(([date, entries]) => ({ date, ...statsFor(entries) }))
+    .filter((p) => p.wtdAvgLb != null)
+    .sort((a, b) => a.date.localeCompare(b.date))
+}
