@@ -14,7 +14,7 @@ import {
 
 const LB_PER_KG = 2.20462
 const MI_PER_KM = 0.621371
-const DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+export const DAY_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 // Re-exported so callers of the stats module don't need two imports.
@@ -57,24 +57,42 @@ export function weekRange(today = new Date()) {
   return { startIso: days[0], endIso: days[6], days }
 }
 
-// One cell per day of the week, carrying that day's workouts and a summary of
-// them (the dominant split tints the marker; the rest feeds the hover tooltip).
+// One calendar cell: a day's workouts and a summary of them (the dominant split
+// tints the marker; the rest feeds the hover tooltip).
+function dayCell(workouts, iso, todayIso) {
+  const weekday = parseIso(iso).getDay()
+  const dayWorkouts = workouts.filter((w) => w.date === iso)
+  const summary = summarizeWorkouts(dayWorkouts)
+  return {
+    iso,
+    weekday,
+    letter: DAY_LETTERS[weekday],
+    dayName: DAY_NAMES[weekday],
+    dayOfMonth: Number(iso.slice(8, 10)),
+    isToday: iso === todayIso,
+    isFuture: iso > todayIso,
+    workouts: dayWorkouts,
+    summary,
+    split: summary.split,
+  }
+}
+
+// One cell per day of the week.
 export function weekDays(workouts, range, today = new Date()) {
   const todayIso = isoDate(today)
-  return range.days.map((iso, i) => {
-    const dayWorkouts = workouts.filter((w) => w.date === iso)
-    const summary = summarizeWorkouts(dayWorkouts)
-    return {
-      iso,
-      letter: DAY_LETTERS[i],
-      dayName: DAY_NAMES[i],
-      dayOfMonth: Number(iso.slice(8, 10)),
-      isToday: iso === todayIso,
-      workouts: dayWorkouts,
-      summary,
-      split: summary.split,
-    }
-  })
+  return range.days.map((iso) => dayCell(workouts, iso, todayIso))
+}
+
+// One cell per day of a YYYY-MM month, first to last.
+export function monthDays(workouts, month, today = new Date()) {
+  const todayIso = isoDate(today)
+  const [y, m] = month.split('-').map(Number)
+  const count = new Date(y, m, 0).getDate()
+  const cells = []
+  for (let d = 1; d <= count; d += 1) {
+    cells.push(dayCell(workouts, isoDate(new Date(y, m - 1, d)), todayIso))
+  }
+  return cells
 }
 
 // Totals over an arbitrary set of workouts — one day's worth or a whole week.
@@ -581,10 +599,10 @@ export function splitBalance(workouts, today = new Date(), windowDays = 30) {
   }))
 }
 
-// --- Last-7-days breakdown ---
-// A pivot of recent training: per split, then either per resistance+exercise or
+// --- Strength breakdown ---
+// A pivot of training over a date range (the last 7 days, or a month): per split, then either per resistance+exercise or
 // per muscle. Mirrors the columns of the user's spreadsheet:
-//   MAX Lbs, Lbs Wtd Avg, SUM of Sets, SUM of Reps, Avg Reps/Set
+//   MAX Lbs, Lbs Wtd Avg, SUM of Sets, SUM of Reps, Avg Reps/Set, plus total volume
 // where the weighted average is volume over reps, i.e. Σ(weight × reps) / Σ(reps).
 
 // Roll a list of sets into that stat line. Weight-less sets still count toward
@@ -614,16 +632,15 @@ function statsFor(entries) {
     reps,
     maxLb,
     wtdAvgLb: loadedReps > 0 ? volumeLb / loadedReps : null,
+    // Same null rule as the average: no loaded set, no volume to report.
+    volumeLb: loadedReps > 0 ? volumeLb : null,
     avgRepsPerSet: sets > 0 ? reps / sets : 0,
   }
 }
 
-// Every strength set from the trailing `days`-day window, warmups excluded.
-function recentStrengthEntries(workouts, today, days) {
-  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (days - 1))
-  const startIso = isoDate(start)
-  const endIso = isoDate(today)
-
+// Every strength set logged between two YYYY-MM-DD days (inclusive), warmups
+// excluded.
+function strengthEntriesBetween(workouts, startIso, endIso) {
   const out = []
   for (const w of workouts) {
     if (w.date < startIso || w.date > endIso) continue
@@ -636,11 +653,18 @@ function recentStrengthEntries(workouts, today, days) {
   return out
 }
 
-// `by: 'exercise'` groups split -> resistance -> exercise; `by: 'muscle'`
-// groups split -> primary muscle. Returns one section per split, each with its
-// own subtotal. No grand total — the splits don't meaningfully sum.
+// The breakdown over the trailing `days`-day window ending today.
 export function weeklyBreakdown(workouts, { by = 'exercise', today = new Date(), days = 7 } = {}) {
-  const entries = recentStrengthEntries(workouts, today, days)
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (days - 1))
+  return breakdown(workouts, { by, startIso: isoDate(start), endIso: isoDate(today) })
+}
+
+// `by: 'exercise'` groups split -> resistance -> exercise; `by: 'muscle'`
+// groups split -> primary muscle, over the days `startIso`..`endIso`. Returns
+// one section per split, each with its own subtotal. No grand total — the
+// splits don't meaningfully sum.
+export function breakdown(workouts, { by = 'exercise', startIso, endIso }) {
+  const entries = strengthEntriesBetween(workouts, startIso, endIso)
 
   // split -> row key -> entries
   const bySplit = new Map()
@@ -703,4 +727,155 @@ export function weeklyBreakdown(workouts, { by = 'exercise', today = new Date(),
         totals: statsFor([...rowMap.values()].flat()),
       }
     })
+}
+
+// --- Months ---
+// Month keys are the YYYY-MM prefix of a day, so they sort and compare as
+// strings with no Date (and no UTC trap) involved.
+
+export const monthKey = (iso) => iso.slice(0, 7)
+
+// First and last day of a YYYY-MM month, as YYYY-MM-DD.
+export function monthRange(month) {
+  const [y, m] = month.split('-').map(Number)
+  return { startIso: isoDate(new Date(y, m - 1, 1)), endIso: isoDate(new Date(y, m, 0)) }
+}
+
+// Split a newest-first workout list into consecutive month groups, newest
+// month first: [{ month, workouts }]. Order within each group is preserved.
+export function groupByMonth(workouts) {
+  const groups = []
+  for (const w of workouts) {
+    const month = monthKey(w.date)
+    const last = groups[groups.length - 1]
+    if (last && last.month === month) last.workouts.push(w)
+    else groups.push({ month, workouts: [w] })
+  }
+  return groups
+}
+
+// Per cardio exercise over a date range: sessions (workouts it appears in),
+// total distance and time in `unit`, and the average pace across the segments
+// that logged both. Sessions are totaled as in cardioRecords. Alphabetical.
+export function cardioBreakdown(workouts, { startIso, endIso, unit = 'mi' }) {
+  const rows = new Map() // exercise id -> row
+  for (const w of workouts) {
+    if (w.date < startIso || w.date > endIso) continue
+    const seen = new Set()
+    for (const e of w.entries) {
+      if (e.exercise_category !== 'cardio' || seen.has(e.exercise)) continue
+      seen.add(e.exercise)
+      const s = cardioSession(w, e.exercise, unit)
+      let row = rows.get(e.exercise)
+      if (!row) {
+        row = {
+          key: e.exercise,
+          name: e.exercise_name,
+          sessions: 0,
+          distance: 0,
+          seconds: 0,
+          pacedDistance: 0,
+          pacedSeconds: 0,
+        }
+        rows.set(e.exercise, row)
+      }
+      row.sessions += 1
+      row.distance += s.distance
+      row.seconds += s.seconds
+      row.pacedDistance += s.pacedDistance
+      row.pacedSeconds += s.pacedSeconds
+    }
+  }
+  return [...rows.values()]
+    .map(({ pacedDistance, pacedSeconds, ...row }) => ({
+      ...row,
+      // Seconds per `unit`; null when no segment had both a distance and a time.
+      pace: pacedDistance > 0 ? pacedSeconds / pacedDistance : null,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+// --- Lift progress ---
+
+// Every strength lift with something to chart, per resistance: { exerciseId,
+// name, split, muscleGroup, lastDate, variants: [{ equipment, days, lastDate }] },
+// where `days` counts distinct days trained — one per point liftProgress
+// plots. Lifts and their variants are newest-trained first, so [0] is a
+// sensible default pick.
+export function progressLifts(workouts) {
+  const lifts = new Map() // exercise id -> lift
+  for (const w of workouts) {
+    for (const e of w.entries) {
+      if (e.exercise_category !== 'strength' || e.is_warmup || e.weight == null) continue
+      const equipment = e.equipment || ''
+      let lift = lifts.get(e.exercise)
+      if (!lift) {
+        lift = {
+          exerciseId: e.exercise,
+          name: e.exercise_name,
+          split: e.exercise_split || '',
+          muscleGroup: e.exercise_muscle_group || '',
+          lastDate: w.date,
+          variants: new Map(),
+        }
+        lifts.set(e.exercise, lift)
+      }
+      if (w.date > lift.lastDate) lift.lastDate = w.date
+      let variant = lift.variants.get(equipment)
+      if (!variant) {
+        variant = { equipment, dates: new Set(), lastDate: w.date }
+        lift.variants.set(equipment, variant)
+      }
+      if (w.date > variant.lastDate) variant.lastDate = w.date
+      variant.dates.add(w.date)
+    }
+  }
+  return [...lifts.values()]
+    .map((l) => ({
+      ...l,
+      variants: [...l.variants.values()].map(({ dates, ...v }) => ({ ...v, days: dates.size })).sort(
+        (a, b) =>
+          b.lastDate.localeCompare(a.lastDate) ||
+          orderIndex(EQUIPMENT_ORDER, a.equipment) - orderIndex(EQUIPMENT_ORDER, b.equipment),
+      ),
+    }))
+    .sort((a, b) => b.lastDate.localeCompare(a.lastDate) || a.name.localeCompare(b.name))
+}
+
+// One point per DAY that has a matching set, oldest first: { date, maxLb,
+// wtdAvgLb, volumeLb, sets, reps, exercises }. Same sets and math as the
+// breakdown table (warmups out; two workouts on one day pool their sets), so a
+// month's numbers here match that month's row there. Days with no loaded set
+// are dropped — they have nothing to plot.
+function dailyProgress(workouts, matches) {
+  const byDay = new Map() // date -> entries
+  for (const w of workouts) {
+    for (const e of w.entries) {
+      if (e.exercise_category !== 'strength' || e.is_warmup || !matches(e)) continue
+      if (!byDay.has(w.date)) byDay.set(w.date, [])
+      byDay.get(w.date).push(e)
+    }
+  }
+  return [...byDay]
+    .map(([date, entries]) => ({
+      date,
+      ...statsFor(entries),
+      exercises: new Set(entries.map((e) => e.exercise)).size,
+    }))
+    .filter((p) => p.wtdAvgLb != null)
+    .sort((a, b) => a.date.localeCompare(b.date))
+}
+
+// One lift on one resistance, day by day (see dailyProgress).
+export function liftProgress(workouts, exerciseId, equipment) {
+  return dailyProgress(
+    workouts,
+    (e) => e.exercise === exerciseId && (e.equipment || '') === equipment,
+  )
+}
+
+// Every lift whose PRIMARY muscle is `muscle`, pooled day by day — the
+// breakdown table's "by muscle" row, over time.
+export function muscleProgress(workouts, muscle) {
+  return dailyProgress(workouts, (e) => (e.exercise_muscle_group || 'other') === muscle)
 }

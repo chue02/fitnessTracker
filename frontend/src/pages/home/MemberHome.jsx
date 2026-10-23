@@ -20,7 +20,7 @@ export default function MemberHome({ user }) {
   }, [])
 
   if (error) return <div className="error">{error}</div>
-  if (workouts === null) return <div className="empty">Loading…</div>
+  if (workouts === null) return <div className="empty">Loading plates…</div>
 
   return (
     <div>
@@ -30,6 +30,8 @@ export default function MemberHome({ user }) {
           + New workout
         </Link>
       </div>
+
+
 
       {workouts.length === 0 ? (
         <div className="empty">
