@@ -53,10 +53,27 @@ can mix both. Browse past workouts in the history view.
 cd backend
 python3 -m venv venv                 # already created if you cloned with it
 venv/bin/pip install -r requirements.txt
+cp .env.example .env                  # then set DJANGO_SECRET_KEY (see below)
 venv/bin/python manage.py migrate
 venv/bin/python manage.py seed_exercises   # load the built-in exercise library
 venv/bin/python manage.py runserver        # http://localhost:8000
 ```
+
+`backend/.env` holds local secrets and is gitignored. Django won't start
+without `DJANGO_SECRET_KEY`. Generate a key:
+
+```bash
+venv/bin/python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
+
+and paste it into `.env`, wrapped in single quotes:
+
+```
+DJANGO_SECRET_KEY='<generated key>'
+```
+
+In production, set `DJANGO_SECRET_KEY` as a real environment variable with
+its own key; never reuse your local one.
 
 Optional admin: `venv/bin/python manage.py createsuperuser`, then visit
 `/admin/`.

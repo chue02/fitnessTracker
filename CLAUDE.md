@@ -12,6 +12,7 @@ Backend (run from `backend/`, using the checked-in venv):
 
 ```bash
 venv/bin/pip install -r requirements.txt
+cp .env.example .env                          # set DJANGO_SECRET_KEY; settings.py fails without it
 venv/bin/python manage.py migrate
 venv/bin/python manage.py seed_exercises      # idempotent; re-run after editing the library
 venv/bin/python manage.py runserver           # :8000
